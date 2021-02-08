@@ -1,0 +1,9 @@
+.vscode/
+mappings/
+quick_saves/
+__pycache__/
+*.pkl
+*.dirlock
+*.lock
+inprogress/
+TODOs.txt

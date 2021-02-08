@@ -1,0 +1,8 @@
+pandas
+numpy
+pytest
+shap
+sklearn
+psutil
+tqdm
+streamlit
