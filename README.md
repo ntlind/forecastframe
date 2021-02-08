@@ -1,5 +1,5 @@
 # forecastframe - a fast and accurate hierarchical timeseries forecasting library for Python
-[![forecastframe](https://github.com/ntlind/forecastframe/workflows/build/badge.svg)
+![forecastframe](https://github.com/ntlind/forecastframe/workflows/build/badge.svg)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Overview
