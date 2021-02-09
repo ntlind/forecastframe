@@ -31,7 +31,7 @@ def plot_fold_distributions(self, groupers=None, error="APE"):
         error in error_list
     ), f"Error metric not recognized; should be one of {error_list}"
 
-    if not self.fold_errors:
+    if "fold_errors" not in dir(self):
         self.calc_all_error_metrics(groupers=groupers)
 
     combined_df = pd.concat(

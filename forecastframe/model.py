@@ -195,6 +195,9 @@ def process_outputs(self, groupers=None):
             # start with hierarchy columns
             output_df = self.results[fold][f"{sample}_input"][self.hierarchy]
 
+            # TODO error was being thrown for reindexing from duplicate axis, but the bigger problem is that IS_actuals has a different order than the
+            # input data. It's probably too dangerous to copy over the values
+
             output_df["Values"] = self.results[fold][f"{sample}_{designator}"]
             output_df["Date"] = self.results[fold][f"{sample}_{designator}"].index
             output_df["Label"] = np.resize([f"{designator}"], len(output_df))
@@ -448,9 +451,6 @@ def cross_validate_model(
             train_index, test_index
         )
 
-        train_actuals = train[self.target].copy()
-        test_actuals = test[self.target].copy()
-
         X_train, y_train = _split_frame(train, self.target)
         X_test, y_test = _split_frame(test, self.target)
 
@@ -474,6 +474,16 @@ def cross_validate_model(
         test_predictions = pd.Series(
             estimator_dict["best_estimator"].predict(X_test), index=X_test.index
         )
+
+        (
+            train_actuals,
+            test_actuals,
+            descaled_train_predictions,
+            descaled_test_predictions,
+        ) = [
+            map(self._descale_target(df, transform_dict))
+            for df in [y_train, y_test, train_predictions, test_predictions]
+        ]
 
         descaled_train_predictions = self._descale_target(
             train_predictions, transform_dict
@@ -782,7 +792,7 @@ def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False
     ----------
     df_list : List[pd.DataFrame]
         a list of dataframes that you want to scale
-    augment_feature_lsit : bool, default True
+    augment_feature_list : bool, default True
         If true, will also scale any variables that are similiarly named to the feature 
         passed to your transformation functions. Purpose is to scale derivative features.
     Returns
