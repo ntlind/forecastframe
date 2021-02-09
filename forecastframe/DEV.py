@@ -15,29 +15,29 @@ alt.data_transformers.disable_max_rows()
 
 def main():
 
-    fframe = ff.load_fframe("PRE-MODEL.pkl")
+    # fframe = ff.load_fframe("PRE-MODEL.pkl")
 
-    print(fframe.data["sales"])
+    # print(fframe.data["sales"])
 
-    params = ff.get_lgb_params("light")  # generate a pre-made set of LightGBM params
-    fframe.cross_validate_model(
-        params=params,
-        estimator_func=ff._get_regression_lgbm,  # use LightGBM's default regressor
-        n_iter=10,
-    )
+    # params = ff.get_lgb_params("light")  # generate a pre-made set of LightGBM params
+    # fframe.cross_validate_model(
+    #     params=params,
+    #     estimator_func=ff._get_regression_lgbm,  # use LightGBM's default regressor
+    #     n_iter=10,
+    # )
 
-    fframe.save_fframe("DELETE.pkl")
+    # fframe.save_fframe("DELETE.pkl")
 
-    # fframe = ff.load_fframe("DELETE.pkl")
+    fframe = ff.load_fframe("DELETE.pkl")
     fframe.calc_all_error_metrics()
 
-    print(fframe.results[4]["OOS_actuals"])
-    print(fframe.results[4]["OOS_predictions"])
+    # print(fframe.results[4]["OOS_actuals"])
+    # print(fframe.results[4]["OOS_predictions"])
 
-    fframe.fold_errors[4].to_csv("DELETE.csv")
-    print(fframe.fold_errors)
+    fframe.fold_errors[3].to_csv("DELETE.csv")
+    # print(fframe.fold_errors)
 
-    chart = fframe.plot_fold_distributions(error="APE")
+    chart = fframe.plot_fold_distributions(error="APE", width=300, height=75)
     chart.show()
 
     # chart = fframe.plot_fold_distributions(error="RMSE")

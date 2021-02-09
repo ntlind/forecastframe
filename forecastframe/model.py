@@ -481,7 +481,7 @@ def cross_validate_model(
             descaled_train_predictions,
             descaled_test_predictions,
         ) = [
-            map(self._descale_target(df, transform_dict))
+            self._descale_target(df, transform_dict)
             for df in [y_train, y_test, train_predictions, test_predictions]
         ]
 

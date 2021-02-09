@@ -7,3 +7,5 @@ __pycache__/
 *.lock
 inprogress/
 TODOs.txt
+DELETE.csv
+forecastframe/DEV.py

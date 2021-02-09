@@ -13,7 +13,38 @@ def _melt_dataframe_for_visualization(data, group_name, error):
     return data[filter_columns].melt().assign(group=group_name)
 
 
-def plot_fold_distributions(self, groupers=None, error="APE"):
+def summarize_fold_distributions(self, groupers=None, error="APE"):
+    """
+    Summarize the findings of our k-fold cross-validation
+
+    Parameters
+    ----------
+    groupers : list, default None
+        If a list of groupers is passed, it will calculate error metrics for a given 
+        set of aggregated predictions stored in processed_outputs.
+    error : str, default "RMSE"
+        The error metric you'd like to plot by fold. Should be one of "APA", 
+        "AE", or "SE".
+    """
+
+    IS_error = None
+    OOS_error = None
+
+    summary = f"""
+    Performance: on our last fold, our model achieved a 7.2% in-sample APE and 11.2%
+     out-of-sample APE. Our absolute percent error was 14.1% better for our
+     highest-selling SKUs than for our lowest selling SKUs, and that
+     same metric was 12.8% higher for high-velocity SKUs than for our slower earners.
+     Fit: The 4.0% error differential between our out-of-sample and in-sample results
+     suggests that our model has been tuned correctly, with a slight hint of
+     overfitting. On your next run, we'd recommend trying a more conservative
+     parameter tuning dictionary to account for this overfitting. Click here to add
+     our recommendations to your parameter tuning dictionary for next time.
+    """
+    return summary
+
+
+def plot_fold_distributions(self, groupers=None, error="APE", height=75, width=300, show=True):
     """
     Return an altair boxplot of all of the error metrics visualized by fold
 
@@ -25,6 +56,12 @@ def plot_fold_distributions(self, groupers=None, error="APE"):
     error : str, default "RMSE"
         The error metric you'd like to plot by fold. Should be one of "APA", 
         "AE", or "SE".
+    height : int, default 75
+        The height of the altair plot to be shown
+    width : int, default 300
+        The height of the altair plot to be shown
+    show : bool, default True
+        Whether or not to render the final plot in addition to returning the altair object
     """
     error_list = ["APA", "APE", "SE", "AE"]
     assert (
@@ -44,10 +81,16 @@ def plot_fold_distributions(self, groupers=None, error="APE"):
         axis=0,
     )
 
-    return _plot_melted_boxplot(melted_df=combined_df)
+    plot = _plot_melted_boxplot(melted_df=combined_df, height=height, width=width)
 
+    if show:
+        plot
+    
+    return plot
 
-def _plot_boxplot(data, x_axis_title="", y_axis_title="", scheme="tealblues"):
+def _plot_boxplot(
+    data, x_axis_title="", y_axis_title="", scheme="tealblues", height=75, width=300
+):
     fig = (
         alt.Chart(data)
         .mark_boxplot(outliers=False)
@@ -58,7 +101,7 @@ def _plot_boxplot(data, x_axis_title="", y_axis_title="", scheme="tealblues"):
                 "variable:O", title="", legend=None, scale=alt.Scale(scheme=scheme),
             ),
         )
-        .properties(height=500)
+        .properties(height=height, width=width)
         .interactive()
     )
 
@@ -66,7 +109,12 @@ def _plot_boxplot(data, x_axis_title="", y_axis_title="", scheme="tealblues"):
 
 
 def _plot_melted_boxplot(
-    melted_df, x_axis_title="", y_axis_title="", scheme="tealblues"
+    melted_df,
+    x_axis_title="",
+    y_axis_title="",
+    scheme="tealblues",
+    height=75,
+    width=300,
 ):
     # Schemes https://vega.github.io/vega/docs/schemes/#reference
     fig = (
@@ -84,7 +132,7 @@ def _plot_melted_boxplot(
                 header=alt.Header(labelAngle=1, labelFontSize=16, labelPadding=0),
             ),
         )
-        .properties(width=125)
+        .properties(width=width, height=height)
         .interactive()
     )
 
