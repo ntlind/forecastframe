@@ -145,6 +145,7 @@ class ForecastFrame:
     from forecastframe.interpret import (
         plot_predictions_over_time,
         plot_fold_distributions,
+        summarize_fold_distributions,
     )
 
     def __repr__(self):

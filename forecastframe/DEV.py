@@ -26,22 +26,21 @@ def main():
     #     n_iter=10,
     # )
 
-    # fframe.save_fframe("DELETE.pkl")
+  #  fframe.save_fframe("DELETE.pkl")
 
     fframe = ff.load_fframe("DELETE.pkl")
     fframe.calc_all_error_metrics()
 
-    # print(fframe.results[4]["OOS_actuals"])
+    # print(fframe.results[4]["OOS_actuals"])5
     # print(fframe.results[4]["OOS_predictions"])
 
-    fframe.fold_errors[3].to_csv("DELETE.csv")
     # print(fframe.fold_errors)
 
-    chart = fframe.plot_fold_distributions(error="APE", width=300, height=75)
-    chart.show()
-
-    # chart = fframe.plot_fold_distributions(error="RMSE")
+    # chart = fframe.plot_fold_distributions(error_type="APE", width=300, height=75)
     # chart.show()
+
+    print(fframe.summarize_fold_distributions())
+
 
 
 if __name__ == "__main__":

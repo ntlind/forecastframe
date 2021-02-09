@@ -680,7 +680,7 @@ def _calc_RMSE(actuals: np.array, predictions: np.array, weights=None):
 def calc_error_metrics(
     self,
     fold: int,
-    metrics: list = ["AE", "APE", "APA", "SE"],
+    metrics: list = ["AE", "APE", "SE"],
     replace_infinities: bool = True,
     groupers=None,
 ):
@@ -705,7 +705,6 @@ def calc_error_metrics(
         return designator.replace("IS_", "In-Sample ").replace("OOS_", "Out-of-Sample ")
 
     function_mapping_dict = {
-        "APA": _calc_APA,
         "APE": _calc_APE,
         "AE": _calc_AE,
         "SE": _calc_SE,

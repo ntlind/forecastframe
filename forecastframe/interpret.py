@@ -1,10 +1,17 @@
 import altair as alt
 import pandas as pd
+import numpy as np
+from IPython.display import display, Markdown, Latex
 
 from forecastframe.utilities import (
     _get_processed_outputs,
     _convert_nonnumerics_to_objects,
+    _calc_weighted_average,
 )
+
+
+def _format_percentage(percentage):
+    return "{:.2%}".format(percentage)
 
 
 def _melt_dataframe_for_visualization(data, group_name, error):
@@ -13,38 +20,185 @@ def _melt_dataframe_for_visualization(data, group_name, error):
     return data[filter_columns].melt().assign(group=group_name)
 
 
-def summarize_fold_distributions(self, groupers=None, error="APE"):
+def _get_error_dict():
+    return {
+        "APE": "absolute percent error",
+        "RMSE": "root mean squared error",
+        "SE": "standard error",
+        "AE": "absolute error",
+    }
+
+
+def _translate_error(error):
+    """Convert an error acroynm into it's written form"""
+    translate_dict = _get_error_dict()
+    return translate_dict[error]
+
+
+def _check_error_input(error):
+    """Check that the given error has been implemented"""
+    acceptable_errors = _get_error_dict().keys()
+    assert (
+        error in acceptable_errors
+    ), f"Error metric not recognized; should be one of {acceptable_errors}"
+
+
+def _score_oos_error(value, error_type):
+    from collections import OrderedDict
+
+    threshold_dict = {
+        "APE": OrderedDict({"best": 0.05, "good": 0.10, "bad": 0.15, "worst": 1})
+    }
+
+    threshold_score = [
+        key
+        for key, threshold in threshold_dict[error_type].items()
+        if value <= threshold
+    ]
+
+    return threshold_score[0]
+
+
+def _score_oos_is_difference(value, error_type):
+    from collections import OrderedDict
+
+    threshold_dict = {
+        "APE": OrderedDict({"best": 0.10, "good": 0.15, "bad": 0.25, "worst": 1})
+    }
+
+    threshold_score = [
+        key
+        for key, threshold in threshold_dict[error_type].items()
+        if value <= threshold
+    ]
+
+    return threshold_score[0]
+
+
+def summarize_fold_distributions(self, error_type="APE"):
     """
     Summarize the findings of our k-fold cross-validation
 
     Parameters
     ----------
-    groupers : list, default None
-        If a list of groupers is passed, it will calculate error metrics for a given 
-        set of aggregated predictions stored in processed_outputs.
-    error : str, default "RMSE"
-        The error metric you'd like to plot by fold. Should be one of "APA", 
-        "AE", or "SE".
+    error_type : str, default "RMSE"
+        The error metric you'd like to plot by fold. Should be one of "APE", 
+        "AE", "RMSE", or "SE".
+
+    TODO need to make format_percentage conditional on APE
     """
 
-    IS_error = None
-    OOS_error = None
+    def _get_fit_summary(difference, error_type):
+
+        score = _score_oos_is_difference(value=oos_error, error_type=error_type)
+
+        explainations = {
+            "best": "tuned correctly",
+            "good": "tuned correctly, with a slight hint of overfitting",
+            "bad": "overfitting your training data",
+            "worst": "significantly overfitting your training data",
+        }
+
+        return explainations[score]
+
+    def _get_next_steps(OOS_error, difference, error_type):
+
+        oos_score = _score_oos_error(value=oos_error, error_type=error_type)
+        difference_score = _score_oos_is_difference(
+            value=difference, error_type=error_type
+        )
+
+        def _get_explaination(oos_performance, diff_performance, recommendation):
+            return f"""
+                    Given your {oos_performance} out-of-sample performance and 
+                    the {diff_performance} difference between your in-sample 
+                    and out-of-sample results, we {recommendation}    
+                    """
+
+        oos_performance = {
+            "best": "strong",
+            "good": "solid",
+            "bad": "poor",
+            "worst": "poor",
+        }[oos_score]
+
+        diff_performance = {
+            "best": "minimal",
+            "good": "minor",
+            "bad": "significant",
+            "worst": "significant",
+        }[difference_score]
+
+        overfitting_tips = """
+        Here are a few tips to control for overfitting:
+            ○ Add more training data and/or resample your existing data
+            ○ Make sure that you're using a representative out-of-sample set when modeling
+            ○ Add noise or reduce the dimensionality of your feature set prior to modeling
+            ○ Reduce the number of features you're feeding into your model 
+            ○ Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`
+        """
+
+        underfitting_tips = """
+        Here are a few tips to control for overfitting:
+            ○ Add more training data and/or resample your existing data
+            ○ Add new features or modifying existing features based on insights from feature importance analysis
+            ○ Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)
+        """
+
+        if oos_performance == "poor":
+            recommendation = f"would recommend making drastic improvements to your approach to control for underfitting. {underfitting_tips}"
+        elif diff_performance == "significant":
+            recommendation = f"would recommend making drastic improvements to your approach to control for overfitting. {overfitting_tips}"
+        elif oos_performance != "strong" & diff_performance != "minimal":
+            recommendation = f"would recommend controlling for overfitting, then going back and working on your underfitting. {overfitting_tips}"
+        elif oos_performance == "strong" & diff_performance != "minimal":
+            recommendation = f"would recommend making a few minor improvements to control for overfitting. {overfitting_tips}"
+        elif oos_performance != "strong" & diff_performance == "minimal":
+            recommendation = f"would recommend making a few minor improvements to control for underfitting. {underfitting_tips}"
+        else:
+            recommendation = "wouldn't recommend any changes to your modeling process at this time. Nice job!"
+
+        return _get_explaination(
+            oos_performance=oos_performance,
+            diff_performance=diff_performance,
+            recommendation=recommendation,
+        )
+
+    _check_error_input(error_type)
+
+    error_translation = _translate_error(error_type)
+
+    is_series, is_actuals = [
+        self.fold_errors[max(self.fold_errors.keys())]["In-Sample " + indicator]
+        for indicator in [error_type, "Actuals"]
+    ]
+    oos_series, oos_actuals = [
+        self.fold_errors[max(self.fold_errors.keys())]["Out-of-Sample " + indicator]
+        for indicator in [error_type, "Actuals"]
+    ]
+
+    is_error, oos_error = [series.median() for series in [is_series, oos_series]]
+    differential = abs(oos_error - is_error)
+
+    weighted_is_error = _calc_weighted_average(values=is_series, weights=is_actuals)
+    weighted_oos_error = _calc_weighted_average(values=oos_series, weights=oos_actuals)
+
+    fit_summary = _get_fit_summary(differential, error_type=error_type)
+    next_steps = _get_next_steps(
+        OOS_error=oos_error, difference=differential, error_type=error_type
+    )
 
     summary = f"""
-    Performance: on our last fold, our model achieved a 7.2% in-sample APE and 11.2%
-     out-of-sample APE. Our absolute percent error was 14.1% better for our
-     highest-selling SKUs than for our lowest selling SKUs, and that
-     same metric was 12.8% higher for high-velocity SKUs than for our slower earners.
-     Fit: The 4.0% error differential between our out-of-sample and in-sample results
-     suggests that our model has been tuned correctly, with a slight hint of
-     overfitting. On your next run, we'd recommend trying a more conservative
-     parameter tuning dictionary to account for this overfitting. Click here to add
-     our recommendations to your parameter tuning dictionary for next time.
+    **Performance**: on our last fold, our model achieved a median {_format_percentage(is_error)} in-sample {error_type} and {_format_percentage(oos_error)}% out-of-sample {error_translation}. On a weighted average basis, our model achieved a {_format_percentage(weighted_is_error)}% in-sample error and a {_format_percentage(weighted_oos_error)}% out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {"larger" if weighted_oos_error < oos_error else "smaller"} values.
+
+    **Fit**: The {_format_percentage(differential)} error differential between our out-of-sample and in-sample results suggests that our model is {fit_summary}. {next_steps}
     """
-    return summary
+    return display(Markdown((summary)))
 
 
-def plot_fold_distributions(self, groupers=None, error="APE", height=75, width=300, show=True):
+def plot_fold_distributions(
+    self, groupers=None, error_type="APE", height=75, width=300, show=True
+):
     """
     Return an altair boxplot of all of the error metrics visualized by fold
 
@@ -53,9 +207,9 @@ def plot_fold_distributions(self, groupers=None, error="APE", height=75, width=3
     groupers : list, default None
         If a list of groupers is passed, it will calculate error metrics for a given 
         set of aggregated predictions stored in processed_outputs.
-    error : str, default "RMSE"
-        The error metric you'd like to plot by fold. Should be one of "APA", 
-        "AE", or "SE".
+    error_type : str, default "RMSE"
+        The error metric you'd like to plot by fold. Should be one of "APE", 
+        "AE", "RMSE", or "SE".
     height : int, default 75
         The height of the altair plot to be shown
     width : int, default 300
@@ -63,10 +217,7 @@ def plot_fold_distributions(self, groupers=None, error="APE", height=75, width=3
     show : bool, default True
         Whether or not to render the final plot in addition to returning the altair object
     """
-    error_list = ["APA", "APE", "SE", "AE"]
-    assert (
-        error in error_list
-    ), f"Error metric not recognized; should be one of {error_list}"
+    _check_error_input(error_type)
 
     if "fold_errors" not in dir(self):
         self.calc_all_error_metrics(groupers=groupers)
@@ -74,7 +225,7 @@ def plot_fold_distributions(self, groupers=None, error="APE", height=75, width=3
     combined_df = pd.concat(
         [
             _melt_dataframe_for_visualization(
-                self.fold_errors[fold], group_name=f"Fold {fold + 1}", error=error
+                self.fold_errors[fold], group_name=f"Fold {fold + 1}", error=error_type
             )
             for fold, _ in self.fold_errors.items()
         ],
@@ -85,8 +236,9 @@ def plot_fold_distributions(self, groupers=None, error="APE", height=75, width=3
 
     if show:
         plot
-    
+
     return plot
+
 
 def _plot_boxplot(
     data, x_axis_title="", y_axis_title="", scheme="tealblues", height=75, width=300
