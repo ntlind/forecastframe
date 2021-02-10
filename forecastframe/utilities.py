@@ -369,3 +369,9 @@ def _split_pairwise(iterable):
     import itertools
 
     return itertools.combinations(iterable, 2)
+
+
+def _calc_weighted_average(values, weights):
+    """Helper function to take the weighted average when your series have nulls"""
+    mask = ~np.isnan(values)
+    return np.average(values[mask], weights=weights[mask])
