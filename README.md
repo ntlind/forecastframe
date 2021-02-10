@@ -1,11 +1,11 @@
 # forecastframe - a fast and accurate hierarchical timeseries forecasting library for Python
 ![forecastframe](https://github.com/ntlind/forecastframe/workflows/build/badge.svg)
+[![Code Coverage](https://codecov.io/gh/ntlind/forecastframe/branch/main/graph/badge.svg)](https://codecov.io/gh/ntlind/forecastframe)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Overview
 
-`forecastframe` generates interpretable forecasts 
-using best-in-class feature-engineering, modeling, and validation strategies. 
+`forecastframe` generates interpretable forecasts using best-in-class feature-engineering, modeling, and validation strategies. 
 It's designed to abstract away hierarchical relationships (e.g., [[Country -> 
 State -> Store], [Category -> Brand -> Product]]) and common time-series issues 
 so that you can focus on feature creation, model interpretation, and delivery.
