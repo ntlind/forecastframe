@@ -1,0 +1,3 @@
+ignore:
+  - "*/forecastframe/utilities"
+  - "*/forecastframe/testing"
