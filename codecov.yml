@@ -1,3 +1,5 @@
 ignore:
   - "forecastframe/utilities"
   - "forecastframe/testing"
+  - "forecastframe/interpret"
+  - "forecastframe/DEV"
