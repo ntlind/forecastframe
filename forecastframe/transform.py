@@ -24,7 +24,7 @@ def _compress(data: pd.DataFrame):
     }
 
     for type_ in ["integer", "float", "object"]:
-        column_list = utilities._get_columns_of_type(data, numeric_lookup_dict[type_])
+        column_list = utilities._get_columns_of_type(data, include=numeric_lookup_dict[type_])
 
         if not column_list:
             continue
@@ -330,11 +330,11 @@ def encode_categoricals(self):
     """
     Encode all object and categorical columns using ordinals.
     """
-    object_columns = utilities._get_columns_of_type(self.data, "object")
+    object_columns = utilities._get_columns_of_type(self.data, include="object")
 
     self.data[object_columns] = self.data[object_columns].astype("category")
 
-    category_columns = utilities._get_columns_of_type(self.data, "category")
+    category_columns = utilities._get_columns_of_type(self.data, include="category")
 
     self.categorical_keys.update(
         {

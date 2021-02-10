@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _assert_features_in_list(features, list_to_check, message):
     """
     Throw assertion error if an element in a list of features doesn't exist
@@ -12,6 +13,7 @@ def _assert_features_in_list(features, list_to_check, message):
     assert not intersection, f"{message}: {intersection}"
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _assert_features_not_in_list(features, list_to_check, message):
     """
     Throw assertion error if an element in a list of features already exists
@@ -21,6 +23,7 @@ def _assert_features_not_in_list(features, list_to_check, message):
     assert not intersection, f"{message}: {intersection}"
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _ensure_is_list(obj):
     """
     Return an object in a list if not already wrapped. Useful when you 
@@ -32,6 +35,7 @@ def _ensure_is_list(obj):
         return obj
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _ensure_is_tuple(obj):
     """
     Return an object in a tuple if not already wrapped. Useful when you 
@@ -51,21 +55,25 @@ def _filter_on_index(data, groupers, filtering_index):
     return data[original_index.isin(filtering_index)]
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _filter_on_infs_nans(data):
     """Filters on rows that have infs or nans in them for inspection"""
     return data[data.isin([np.nan, np.inf, -np.inf]).any(1)]
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def to_pandas(self):
     """Convert the ForecastFrame to be a pandas dataframe"""
     return self.data
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def get_sample(self):
     """Pull the sample dataframe from the fframe"""
     return self.sample
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _reset_index(self, df: pd.DataFrame, indexers: list):
     """
     Reset index of dataframe using supplied keys
@@ -84,6 +92,7 @@ def _reset_index(self, df: pd.DataFrame, indexers: list):
     return df
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _reset_date_index(self, df):
     """
     Set the index using the datetime_column metadata
@@ -97,6 +106,7 @@ def _reset_date_index(self, df):
     return self._reset_index(df, self.datetime_column)
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _reset_hierarchy_index(self, df):
     """
     Set the index using the hierarchy metadata
@@ -110,6 +120,7 @@ def _reset_hierarchy_index(self, df):
     return self._reset_index(df, self.hierarchy)
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _reset_multi_index(self, df, index=None):
     """
     Set the index using both the datetime_column and
@@ -172,6 +183,7 @@ def _update_values(self, df_to_update, second_df):
     return self._reset_date_index(df_to_update)
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def _get_covariates(self) -> list:
     """
     Return a list of all extra features used for forecasting,
@@ -198,19 +210,15 @@ def _assert_feature_not_transformed(self, features: list, transform_str: str):
         {features_already_transformed}"
 
 
-def _exclude_columns_of_type(df, type_):
-    """Shortcut to exclude columns of a given type (e.g., "category")"""
-    return list(df.select_dtypes(exclude=type_).columns)
-
-
-def _get_columns_of_type(df, type_):
+@pytest.mark.skip(reason="simple python functionality")
+def _get_columns_of_type(df, include=None, exclude=None):
     """Shortcut to get columns of a given type (e.g., "category")"""
-    return list(df.select_dtypes(include=type_).columns)
+    return list(df.select_dtypes(include=include, exclude=exclude).columns)
 
 
 def _convert_nonnumerics_to_objects(df):
     """Converts all non-numeric columns in a df to objects"""
-    non_numerics = _exclude_columns_of_type(df, type_=np.number)
+    non_numerics = _get_columns_of_type(df=df, exclude=np.number)
 
     df[non_numerics] = df[non_numerics].astype(object)
 
@@ -301,6 +309,7 @@ def profile_line_runtime(func, *args, **kwargs):
     return lp.print_stats()
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def exp_increase_df_size(df, n):
     """
     Exponentially multiples dataframe size for feasibility testing
@@ -311,11 +320,13 @@ def exp_increase_df_size(df, n):
     return df
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def check_RAM():
     """Prints the amount of used RAM"""
     print("{:.1f} GB used".format(psutil.virtual_memory().available / 1e9 - 0.7))
 
 
+@pytest.mark.skip(reason="simple python functionality")
 def check_memory():
     """Prints the top 10 biggest objects in the global namespace"""
 
