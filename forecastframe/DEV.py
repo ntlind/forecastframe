@@ -26,7 +26,7 @@ def main():
     #     n_iter=10,
     # )
 
-  #  fframe.save_fframe("DELETE.pkl")
+    #  fframe.save_fframe("DELETE.pkl")
 
     fframe = ff.load_fframe("DELETE.pkl")
     fframe.calc_all_error_metrics()
@@ -39,8 +39,7 @@ def main():
     # chart = fframe.plot_fold_distributions(error_type="APE", width=300, height=75)
     # chart.show()
 
-    print(fframe.summarize_fold_distributions())
-
+    print(fframe.summarize_performance())
 
 
 if __name__ == "__main__":

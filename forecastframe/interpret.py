@@ -1,7 +1,6 @@
 import altair as alt
 import pandas as pd
 import numpy as np
-from IPython.display import display, Markdown, Latex
 
 from forecastframe.utilities import (
     _get_processed_outputs,
@@ -75,7 +74,7 @@ def _score_oos_is_difference(value, error_type):
     return threshold_score[0]
 
 
-def summarize_fold_distributions(self, error_type="APE"):
+def summarize_performance(self, error_type="APE"):
     """
     Summarize the findings of our k-fold cross-validation
 
@@ -95,8 +94,8 @@ def summarize_fold_distributions(self, error_type="APE"):
         explainations = {
             "best": "tuned correctly",
             "good": "tuned correctly, with a slight hint of overfitting",
-            "bad": "overfitting your training data",
-            "worst": "significantly overfitting your training data",
+            "bad": "overfitting our training data",
+            "worst": "significantly overfitting our training data",
         }
 
         return explainations[score]
@@ -109,11 +108,7 @@ def summarize_fold_distributions(self, error_type="APE"):
         )
 
         def _get_explaination(oos_performance, diff_performance, recommendation):
-            return f"""
-                    Given your {oos_performance} out-of-sample performance and 
-                    the {diff_performance} difference between your in-sample 
-                    and out-of-sample results, we {recommendation}    
-                    """
+            return f"Given your {oos_performance} out-of-sample performance and the {diff_performance} difference between your in-sample and out-of-sample results, we {recommendation}"
 
         oos_performance = {
             "best": "strong",
@@ -129,20 +124,10 @@ def summarize_fold_distributions(self, error_type="APE"):
             "worst": "significant",
         }[difference_score]
 
-        overfitting_tips = """
-        Here are a few tips to control for overfitting:
-            ○ Add more training data and/or resample your existing data
-            ○ Make sure that you're using a representative out-of-sample set when modeling
-            ○ Add noise or reduce the dimensionality of your feature set prior to modeling
-            ○ Reduce the number of features you're feeding into your model 
-            ○ Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`
+        overfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Make sure that you're using a representative out-of-sample set when modeling \n - Add noise or reduce the dimensionality of your feature set prior to modeling \n - Reduce the number of features you're feeding into your model \n - Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`
         """
 
-        underfitting_tips = """
-        Here are a few tips to control for overfitting:
-            ○ Add more training data and/or resample your existing data
-            ○ Add new features or modifying existing features based on insights from feature importance analysis
-            ○ Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)
+        underfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Add new features or modifying existing features based on insights from feature importance analysis \n - Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)
         """
 
         if oos_performance == "poor":
@@ -188,12 +173,11 @@ def summarize_fold_distributions(self, error_type="APE"):
         OOS_error=oos_error, difference=differential, error_type=error_type
     )
 
-    summary = f"""
-    **Performance**: on our last fold, our model achieved a median {_format_percentage(is_error)} in-sample {error_type} and {_format_percentage(oos_error)}% out-of-sample {error_translation}. On a weighted average basis, our model achieved a {_format_percentage(weighted_is_error)}% in-sample error and a {_format_percentage(weighted_oos_error)}% out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {"larger" if weighted_oos_error < oos_error else "smaller"} values.
+    from IPython.core.display import display, Markdown
 
-    **Fit**: The {_format_percentage(differential)} error differential between our out-of-sample and in-sample results suggests that our model is {fit_summary}. {next_steps}
+    summary = f"""**Performance**: For our last fold, our model achieved a median {_format_percentage(is_error)} in-sample {error_translation} and {_format_percentage(oos_error)} out-of-sample {error_translation}. On a weighted average basis, our model achieved a {_format_percentage(weighted_is_error)} in-sample error and a {_format_percentage(weighted_oos_error)} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {"larger" if weighted_oos_error < oos_error else "smaller"} values. \n \n **Fit**: The {_format_percentage(differential)} error differential between our out-of-sample and in-sample results suggests that our model is {fit_summary}. {next_steps}
     """
-    return display(Markdown((summary)))
+    return Markdown(summary)
 
 
 def plot_fold_distributions(
