@@ -87,6 +87,7 @@ class ForecastFrame:
         self.processed_outputs = {}
         self.function_list = []
         self.scalers_list = []
+        self.alerts = {}
 
     from forecastframe.feature_engineering import (
         calc_days_since_release,
@@ -145,7 +146,7 @@ class ForecastFrame:
     from forecastframe.interpret import (
         plot_predictions_over_time,
         plot_fold_distributions,
-        summarize_performance,
+        summarize_fit,
     )
 
     def __repr__(self):

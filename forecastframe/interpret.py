@@ -8,6 +8,8 @@ from forecastframe.utilities import (
     _calc_weighted_average,
 )
 
+from IPython.core.display import display, Markdown
+
 
 def _format_percentage(percentage):
     return "{:.2%}".format(percentage)
@@ -74,7 +76,9 @@ def _score_oos_is_difference(value, error_type):
     return threshold_score[0]
 
 
-def summarize_performance(self, error_type="APE"):
+def summarize_performance_over_time(
+    self, error_type="APE", period="month", return_string=None
+):
     """
     Summarize the findings of our k-fold cross-validation
 
@@ -83,9 +87,57 @@ def summarize_performance(self, error_type="APE"):
     error_type : str, default "RMSE"
         The error metric you'd like to plot by fold. Should be one of "APE", 
         "AE", "RMSE", or "SE".
+    return_string : bool, default False
+        If true, returns a string rather than an IPython Markdown object
+
+    """
+
+    def _get_performance_summary(self, period):
+        oos_error_last_month = None
+        oos_error_annual_average = None
+        next_month_error_change = None
+        next_month_error_change_sign = (
+            "decrease" if next_month_error_change < 0 else "increase"
+        )
+
+        return f"Performance: Our out-of-sample error was {_format_percentage(oos_error_last_month)} in the prior {period}, compared to an average error of {_format_percentage(oos_error_annual_average)} over the past year. We expect forecast error to {next_month_error_change_sign} by {_format_percentage(next_month_error_change)} during the coming {period} based on historical trends."
+
+    def get_comparison_to_plan_summary():
+        # TODO intending to build this in at a later stage
+        summary = "Sales in the prior week beat planned estimates by 19.6%, improving a three-month spread of 13.4%. Quantile's weekly forecasts continue to outperform the planned estimates by 8.4% over a three-month period."
+        pass
+
+    def get_target_trends():
+        summary = "Trends: Sales spiked by 24.2% in December, which is a 2.4% increase over the 21.8% spike we saw last year. We expect sales to continue trending upward through February, at which time they're likely to decrease by 18.4% over the course of the month."
+
+
+def summarize_fit(self, error_type="APE", return_string=None):
+    """
+    Summarize the findings of our k-fold cross-validation
+
+    Parameters
+    ----------
+    error_type : str, default "RMSE"
+        The error metric you'd like to plot by fold. Should be one of "APE", 
+        "AE", "RMSE", or "SE".
+    return_string : bool, default False
+        If true, returns a string rather than an IPython Markdown object
 
     TODO need to make format_percentage conditional on APE
     """
+
+    def _get_oos_performance(oos_error):
+        return {"best": "strong", "good": "solid", "bad": "poor", "worst": "poor",}[
+            _score_oos_error(oos_score)
+        ]
+
+    def _get_diff_performance(difference):
+        return {
+            "best": "minimal",
+            "good": "minor",
+            "bad": "significant",
+            "worst": "significant",
+        }[_score_oos_is_difference(difference)]
 
     def _get_fit_summary(difference, error_type):
 
@@ -101,34 +153,14 @@ def summarize_performance(self, error_type="APE"):
         return explainations[score]
 
     def _get_next_steps(OOS_error, difference, error_type):
-
-        oos_score = _score_oos_error(value=oos_error, error_type=error_type)
-        difference_score = _score_oos_is_difference(
-            value=difference, error_type=error_type
-        )
-
         def _get_explaination(oos_performance, diff_performance, recommendation):
             return f"Given your {oos_performance} out-of-sample performance and the {diff_performance} difference between your in-sample and out-of-sample results, we {recommendation}"
 
-        oos_performance = {
-            "best": "strong",
-            "good": "solid",
-            "bad": "poor",
-            "worst": "poor",
-        }[oos_score]
+        oos_performance = _get_oos_performance(oos_error)
+        diff_performance = _get_diff_performance(difference)
 
-        diff_performance = {
-            "best": "minimal",
-            "good": "minor",
-            "bad": "significant",
-            "worst": "significant",
-        }[difference_score]
-
-        overfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Make sure that you're using a representative out-of-sample set when modeling \n - Add noise or reduce the dimensionality of your feature set prior to modeling \n - Reduce the number of features you're feeding into your model \n - Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`
-        """
-
-        underfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Add new features or modifying existing features based on insights from feature importance analysis \n - Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)
-        """
+        overfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Make sure that you're using a representative out-of-sample set when modeling \n - Add noise or reduce the dimensionality of your feature set prior to modeling \n - Reduce the number of features you're feeding into your model \n - Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`"""
+        underfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Add new features or modifying existing features based on insights from feature importance analysis \n - Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)"""
 
         if oos_performance == "poor":
             recommendation = f"would recommend making drastic improvements to your approach to control for underfitting. {underfitting_tips}"
@@ -173,10 +205,16 @@ def summarize_performance(self, error_type="APE"):
         OOS_error=oos_error, difference=differential, error_type=error_type
     )
 
-    from IPython.core.display import display, Markdown
+    summary = f"""**Performance**: For our last fold, our model achieved a median {_format_percentage(is_error)} in-sample {error_translation} and {_format_percentage(oos_error)} out-of-sample {error_translation}. On a weighted average basis, our model achieved a {_format_percentage(weighted_is_error)} in-sample error and a {_format_percentage(weighted_oos_error)} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {"larger" if weighted_oos_error < oos_error else "smaller"} values. \n \n **Fit**: The {_format_percentage(differential)} error differential between our out-of-sample and in-sample results suggests that our model is {fit_summary}. {next_steps}"""
 
-    summary = f"""**Performance**: For our last fold, our model achieved a median {_format_percentage(is_error)} in-sample {error_translation} and {_format_percentage(oos_error)} out-of-sample {error_translation}. On a weighted average basis, our model achieved a {_format_percentage(weighted_is_error)} in-sample error and a {_format_percentage(weighted_oos_error)} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {"larger" if weighted_oos_error < oos_error else "smaller"} values. \n \n **Fit**: The {_format_percentage(differential)} error differential between our out-of-sample and in-sample results suggests that our model is {fit_summary}. {next_steps}
-    """
+    # append performance alert
+    self.alerts[
+        "performance"
+    ] = f"Forecasting performance was {_get_oos_performance(oos_error)}, with an out-of-sample error of {_format_percentage(oos_error)} and an in-sample error of {_format_percentage(is_error)}"
+
+    if return_string:
+        return summary
+
     return Markdown(summary)
 
 
