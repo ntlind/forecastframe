@@ -126,18 +126,18 @@ def summarize_fit(self, error_type="APE", return_string=None):
     TODO need to make format_percentage conditional on APE
     """
 
-    def _get_oos_performance(oos_error):
+    def _get_oos_performance(oos_error, error_type=error_type):
         return {"best": "strong", "good": "solid", "bad": "poor", "worst": "poor",}[
-            _score_oos_error(oos_score)
+            _score_oos_error(oos_error, error_type)
         ]
 
-    def _get_diff_performance(difference):
+    def _get_diff_performance(difference, error_type=error_type):
         return {
             "best": "minimal",
             "good": "minor",
             "bad": "significant",
             "worst": "significant",
-        }[_score_oos_is_difference(difference)]
+        }[_score_oos_is_difference(difference, error_type)]
 
     def _get_fit_summary(difference, error_type):
 

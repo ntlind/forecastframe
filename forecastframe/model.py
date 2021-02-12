@@ -683,6 +683,7 @@ def calc_error_metrics(
     metrics: list = ["AE", "APE", "SE"],
     replace_infinities: bool = True,
     groupers=None,
+    date_range=None,
 ):
     """
     Calculate a dataframe containing several different error metrics for a given fold.
@@ -699,7 +700,11 @@ def calc_error_metrics(
     groupers : list, default None
         If a list of groupers is passed, it will calculate error metrics for a given 
         set of aggregated predictions stored in processed_outputs.
+    date_range : tuple, default None
+        If tuple of (start_date, end_date) is passed, will only calculate error metrics for 
+        the specified date range (inclusive)
     """
+    import functools
 
     def _get_col_column_name(designator):
         return designator.replace("IS_", "In-Sample ").replace("OOS_", "Out-of-Sample ")
@@ -712,12 +717,16 @@ def calc_error_metrics(
         "Predictions": lambda actuals, predictions: predictions,
     }
 
-    output_dict = {}
+    outputs = []
     for sample in ["IS", "OOS"]:
 
         data = _get_processed_outputs(
             self=self, sample=sample, groupers=groupers, fold=fold
         )
+
+        if date_range:
+            start_date, end_date = date_range
+            data = data[data[(self.index >= start_date) & (self.index <= end_date)]]
 
         actuals = data[data["Label"] == "actuals"]["Values"].values
         predictions = data[data["Label"] == "predictions"]["Values"].values
@@ -734,13 +743,13 @@ def calc_error_metrics(
 
             col_name = _get_col_column_name(f"{sample}_{metric}")
 
-            output_dict[col_name] = pd.Series(calculation_series)
+            outputs.append(pd.Series(calculation_series, name=col_name))
 
     # Fills series with nulls because OOS is shorter than IS
-    return pd.DataFrame(dict([(k, pd.Series(v)) for k, v in output_dict.items()]))
+    return pd.concat(outputs, axis=1)
 
 
-def calc_all_error_metrics(self, groupers=None):
+def calc_all_error_metrics(self, groupers=None, date_range=None):
     """
     Calculate a dictionary of error metrics, with each key being a fold of
     the cross_validation.
@@ -750,12 +759,17 @@ def calc_all_error_metrics(self, groupers=None):
     groupers : list, default None
         If a list of groupers is passed, it will calculate error metrics for a given 
         set of aggregated predictions stored in processed_outputs.
+    date_range : tuple, default None
+        If tuple of (start_date, end_date) is passed, will only calculate error metrics for 
+        the specified date range (inclusive)
     """
 
     fold_dict = dict()
 
     for fold, _ in self.results.items():
-        fold_dict[fold] = self.calc_error_metrics(fold=fold, groupers=groupers)
+        fold_dict[fold] = self.calc_error_metrics(
+            fold=fold, groupers=groupers, date_range=date_range
+        )
 
     self.fold_errors = fold_dict
 
