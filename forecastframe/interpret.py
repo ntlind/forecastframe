@@ -138,7 +138,7 @@ def summarize_performance_over_time(
             "decrease" if next_month_error_change < 0 else "increase"
         )
 
-        return f"Performance: Our out-of-sample {error_type} was {oos_error_last_month} in the prior {period}, compared to an average error of {oos_error_three_periods} over the past three {period}s."
+        return f"Performance: Our out-of-sample {error_type} was {oos_error_last_month} in the prior {period}, compared to an average error of {_format_percentage(oos_error_three_period_median)} over the past three {period}s."
 
     def get_comparison_to_plan_summary():
         # TODO intending to build this in at a later stage
@@ -147,41 +147,38 @@ def summarize_performance_over_time(
 
     def get_target_trends(self):
         def _calc_percent_change(new, old):
-            return _format_percentage((new - old) / old)
+            return (new - old) / old
 
         sum_target_two_months_ago = self.data.loc[
-            (self.data[self.datetime_column] >= last_2_months)
-            & (self.data[self.datetime_column] <= last_months),
+            (self.data.index >= last_2_months) & (self.data.index <= last_month),
             self.target,
-        ]
+        ].sum()
         sum_target_last_month = self.data.loc[
-            (self.data[self.datetime_column] >= last_months)
-            & (self.data[self.datetime_column] <= today),
-            self.target,
-        ]
+            (self.data.index >= last_month) & (self.data.index <= today), self.target,
+        ].sum()
         target_growth_prior_month = _calc_percent_change(
             sum_target_last_month, sum_target_two_months_ago
         )
         growth_sign = "grew" if target_growth_prior_month > 0 else "fell"
 
         sum_target_last_year = self.data.loc[
-            (
-                self.data[self.datetime_column]
-                >= (last_month - datetime.timedelta(days=365))
-            )
-            & (
-                self.data[self.datetime_column]
-                <= (today - datetime.timedelta(days=365))
-            ),
+            (self.data.index >= (last_month - datetime.timedelta(days=365)))
+            & (self.data.index <= (today - datetime.timedelta(days=365))),
             self.target,
-        ]
+        ].sum()
         yoy_growth = _calc_percent_change(sum_target_last_month, sum_target_last_year)
-        diff_sign = "up" if yoy_change > 0 else "down"
+        diff_sign = "up" if yoy_growth > 0 else "down"
 
-        summary = f"Trends: Sales {growth_sign} by {target_growth_prior_month} last month, {diff_sign} {yoy_change} over the prevoius year. We expect sales to continue trending upwards in the coming month."
+        summary = f"Trends: Sales {growth_sign} by {target_growth_prior_month} last month, {diff_sign} {yoy_growth} over the previous year. We expect sales to continue trending upwards in the coming month."
+        return summary
 
-    return ". ".join(
-        [_get_performance_summary(self, error_type=error_type), get_target_trends(self)]
+    return Markdown(
+        "\n\n".join(
+            [
+                _get_performance_summary(self, error_type=error_type),
+                get_target_trends(self),
+            ]
+        )
     )
 
 

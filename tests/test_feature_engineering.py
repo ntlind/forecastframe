@@ -403,6 +403,8 @@ def test_calc_percent_relative_to_threshold():
 
 def test_calc_prophet_forecasts():
     fframe = testing.get_test_fframe()
+    fframe.sample = fframe.sample.dropna() 
+    
     fframe.calc_prophet_forecasts(
         interval_width=0.8, additional_regressors=["category", "state", "store"]
     )
