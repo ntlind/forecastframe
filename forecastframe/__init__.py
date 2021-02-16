@@ -132,6 +132,8 @@ class ForecastFrame:
     from forecastframe.io import save_fframe
 
     from forecastframe.utilities import (
+        to_pandas,
+        get_sample,
         _assert_features_in_list,
         _assert_features_not_in_list,
         _get_covariates,
@@ -142,8 +144,6 @@ class ForecastFrame:
         _reset_hierarchy_index,
         _reset_date_index,
         _reset_index,
-        to_pandas,
-        get_sample,
     )
 
     from forecastframe.interpret import (
@@ -151,6 +151,13 @@ class ForecastFrame:
         plot_fold_distributions,
         summarize_fit,
         summarize_performance_over_time,
+        calc_SHAP_values,
+        plot_SHAP_decision,
+        plot_SHAP_force,
+        plot_SHAP_importance,
+        plot_SHAP_dependence,
+        plot_SHAP_waterfall,
+        _list_most_important_features,
     )
 
     def __repr__(self):
