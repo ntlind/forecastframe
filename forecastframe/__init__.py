@@ -86,6 +86,7 @@ class ForecastFrame:
         self.categorical_keys = {}
         self.processed_outputs = {}
         self.function_list = []
+        self.ensemble_list = []
         self.scalers_list = []
         self.alerts = {}
 
@@ -147,6 +148,7 @@ class ForecastFrame:
         plot_predictions_over_time,
         plot_fold_distributions,
         summarize_fit,
+        summarize_performance_over_time,
     )
 
     def __repr__(self):

@@ -758,3 +758,196 @@ def calc_percent_relative_to_threshold(
         )
 
         setattr(self, attribute, final_output)
+
+
+def _predict_prophet(model_object, df=None, *args, **kwargs):
+    """
+    A custom version of Prophet's .predict() method which doesn't discard input columns.
+    
+    Parameters
+    ----------
+    df: pd.DataFrame with dates for predictions (column ds), and capacity
+        (column cap) if logistic growth. If not provided, predictions are
+        made on the history.
+    """
+    if df is None:
+        df = model_object.model.history.copy()
+    else:
+        if df.shape[0] == 0:
+            raise ValueError("Dataframe has no rows.")
+        df = model_object.model.setup_dataframe(df.copy())
+
+    df["trend"] = model_object.model.predict_trend(df)
+    seasonal_components = model_object.model.predict_seasonal_components(df)
+    if model_object.model.uncertainty_samples:
+        intervals = model_object.model.predict_uncertainty(df)
+    else:
+        intervals = None
+
+    df2 = pd.concat((df, intervals, seasonal_components), axis=1)
+    df2["yhat"] = (
+        df2["trend"] * (1 + df2["multiplicative_terms"]) + df2["additive_terms"]
+    )
+
+    columns_to_keep = list(model_object.model.history.columns)
+    for col in ["y_scaled", "t"]:
+        columns_to_keep.remove(col)
+
+    for col in [
+        "trend",
+        "trend_lower",
+        "trend_upper",
+        "yhat_upper",
+        "yhat_lower",
+        "yhat",
+    ]:
+        columns_to_keep.append(col)
+
+    return df2[columns_to_keep].rename(
+        {
+            col: "prophet_" + col
+            for col in [
+                "trend",
+                "trend_lower",
+                "trend_upper",
+                "yhat_upper",
+                "yhat_lower",
+                "yhat",
+            ]
+        },
+        axis=1,
+    )
+
+
+def fit_prophet(self, attribute: str = "sample", *args, **kwargs):
+    """
+    Add Prophet forecasts to your dataframe
+
+    Parameters
+    ----------
+    attribute : str, default "sample"
+        The attribute of self where your data should be pulled from and saved to. 
+        If set to "sample", will also add the function call to function_list for 
+        later processing.
+    additional_regressors : List(str), default None
+        A list of additional regressors to pass to Prophet
+
+    Additional Parameters (passed as *args or **kwargs to Prophet)
+    ----------
+    interval_width: float, default .95
+        Float, width of the uncertainty intervals provided
+        for the forecast. If mcmc_samples=0, this will be only the uncertainty
+        in the trend using the MAP estimate of the extrapolated generative
+        model. If mcmc.samples>0, this will be integrated over all model
+        parameters, which will include uncertainty in seasonality. In this library,
+        we override FB's default from .8 to .95 to provide more stringer
+        anomaly detection.
+    growth: str, default "linear"
+        String 'linear' or 'logistic' to specify a linear or logistic trend.
+    changepoints: list, default None 
+        List of dates at which to include potential changepoints. If
+        not specified, potential changepoints are selected automatically.
+    n_changepoints: int, default 25
+        Number of potential changepoints to include. Not used
+        if input `changepoints` is supplied. If `changepoints` is not supplied,
+        then n_changepoints potential changepoints are selected uniformly from
+        the first `changepoint_range` proportion of the history.
+    changepoint_range: float, default .8 
+        Proportion of history in which trend changepoints will
+        be estimated. Defaults to 0.8 for the first 80%. Not used if
+        `changepoints` is specified.
+    yearly_seasonality: bool, str, or int, default "auto" 
+        If true, adds Fourier terms to model changes in annual seasonality. Pass 
+        an int to manually control the number of Fourier terms added, where 10 
+        is the default and 20 creates a more flexible model but increases the 
+        risk of overfitting.
+    weekly_seasonality: bool, str, or int, default "auto"
+        Fit weekly seasonality.
+        Can be 'auto', True, False, or a number of Fourier terms to generate.
+    daily_seasonality: bool, str, or int, default "auto"  
+        If true, adds Fourier terms to model changes in daily seasonality. Pass 
+        an int to manually control the number of Fourier terms added, where 10 
+        is the default and 20 creates a more flexible model but increases the 
+        risk of overfitting.
+    holidays: bool, default None
+        pd.DataFrame with columns holiday (string) and ds (date type)
+        and optionally columns lower_window and upper_window which specify a
+        range of days around the date to be included as holidays.
+        lower_window=-2 will include 2 days prior to the date as holidays. Also
+        optionally can have a column prior_scale specifying the prior scale for
+        that holiday.
+    seasonality_mode: str, default "additive"
+        'additive' (default) or 'multiplicative'. Multiplicative seasonality implies
+        that each season applies a scaling effect to the overall trend, while additive 
+        seasonality implies adding seasonality to trend to arrive at delta.
+    seasonality_prior_scale: float, default 10.0
+        Parameter modulating the strength of the
+        seasonality model. Larger values allow the model to fit larger seasonal
+        fluctuations, smaller values dampen the seasonality. Can be specified
+        for individual seasonalities using add_seasonality.
+    holidays_prior_scale: float, default 10.0
+        Parameter modulating the strength of the holiday
+        components model, unless overridden in the holidays input.
+    changepoint_prior_scale: float, default 0.05 
+        Parameter modulating the flexibility of the
+        automatic changepoint selection. Large values will allow many
+        changepoints, small values will allow few changepoints.
+    mcmc_samples: int, default 0
+        Integer, if greater than 0, will do full Bayesian inference
+        with the specified number of MCMC samples. If 0, will do MAP
+        estimation, which only measures uncertainty in the trend and 
+        observation noise but is much faster to run.
+    uncertainty_samples: int, default 1000
+        Number of simulated draws used to estimate
+        uncertainty intervals. Settings this value to 0 or False will disable
+        uncertainty estimation and speed up the calculation.
+    stan_backend: str, default None
+        str as defined in StanBackendEnum default: None - will try to
+        iterate over all available backends and find the working one
+    """
+    from fbprophet import Prophet
+
+    if attribute == "sample":
+        self.ensemble_list.append(
+            {
+                "training_func": fit_prophet,
+                "prediction_func": predict_prophet,
+                "args": args,
+                "kwargs": kwargs,
+            }
+        )
+
+    data = getattr(self, attribute)
+    data.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
+
+    if "additional_regressors" in kwargs.keys():
+        (
+            model.add_regressor(regressor)
+            for regressor in kwargs["additional_regressors"]
+        )
+        kwargs.pop("additional_regressors")
+
+    model = Prophet(data, *args, **kwargs,)
+    model = model.fit(data)
+
+    return model
+
+
+def predict_prophet(self, model_obj, df):
+    """
+    Use a Prophet modeling object to predict on a new dataframe
+    model_obj : Prophet.model
+        A Prophet modeling object
+    df : pd.DataFrame
+        The pandas dataframe you want to predict on
+    """
+
+    df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
+
+    output_df = _prophet_predict(model_object=model_obj, df=df)
+
+    output_df.rename(
+        {"ds": self.datetime_column, "y": self.target}, axis=1, inplace=True
+    )
+
+    return output_df

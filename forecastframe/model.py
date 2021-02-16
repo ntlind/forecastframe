@@ -451,6 +451,8 @@ def cross_validate_model(
             train_index, test_index
         )
 
+        train, test = self._run_ensembles(train=train, test=test)
+
         X_train, y_train = _split_frame(train, self.target)
         X_test, y_test = _split_frame(test, self.target)
 
@@ -726,7 +728,7 @@ def calc_error_metrics(
 
         if date_range:
             start_date, end_date = date_range
-            data = data[data[(self.index >= start_date) & (self.index <= end_date)]]
+            data = data[(data.index >= start_date) & (data.index <= end_date)]
 
         actuals = data[data["Label"] == "actuals"]["Values"].values
         predictions = data[data["Label"] == "predictions"]["Values"].values
@@ -771,7 +773,13 @@ def calc_all_error_metrics(self, groupers=None, date_range=None):
             fold=fold, groupers=groupers, date_range=date_range
         )
 
-    self.fold_errors = fold_dict
+    date_suffix = (
+        f"_{date_range[0].strftime('%Y-%m-%d')}_{date_range[1].strftime('%Y-%m-%d')}"
+        if date_range
+        else ""
+    )
+
+    setattr(self, f"fold_errors{date_suffix}", fold_dict)
 
 
 def custom_asymmetric_train(y_pred, y_true, loss_multiplier=0.9):
@@ -838,6 +846,33 @@ def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False
     df_list += transform_dict_list
 
     return df_list
+
+
+def _run_ensembles(self, train, test):
+    """
+    Run all stored modeling ensembles in self.ensemble_list on some input df.
+    """
+
+    assert isinstance(train, pd.DataFrame) & isinstance(test, pd.DataFrame)
+
+    if not self.ensemble_list:
+        return (train, test)
+
+    # initialize a new attribute to store the data
+    attribute = "inprogress"
+    setattr(self, attribute, train)
+
+    for ensemble_dict in self.ensemble_list:
+        training_func = ensemble_dict["training_func"]
+        prediction_func = ensemble_dict["prediction_func"]
+        args = ensemble_dict.get("args")
+        kwargs = ensemble_dict.get("kwargs")
+
+        model = training_func(train, *args, **kwargs)
+
+        train, test = (prediction_func(model_obj=model, df=df) for df in (train, test))
+
+    return (train, test)
 
 
 def _run_feature_engineering(self, data):
