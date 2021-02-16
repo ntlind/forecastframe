@@ -35,6 +35,38 @@ def test__run_scaler_pipeline():
     assert {"log1p", "normalize"}.issubset(set(log_dict.keys()))
 
 
+def test__run_ensembles():
+    from datetime import timedelta
+
+    fframe = testing.get_test_fframe()
+    fframe.data = fframe.data.dropna()
+    fframe.sample = fframe.sample.dropna()
+
+    train_df = fframe.data.copy(deep=True)
+
+    test_df = fframe.data.copy(deep=True)
+    test_df[["sales_int", "sales_float"]] = test_df[["sales_int", "sales_float"]] * 20
+    test_df.index = test_df.index + timedelta(days=15)
+
+    initial_sample = fframe.sample.copy(deep=True)
+
+    # should only update the sample
+    fframe.calc_prophet_forecasts(
+        additional_regressors=["state", "store"], interval_width=0.99
+    )
+    assert fframe.data.equals(train_df)
+    assert set(["prophet_yhat", "prophet_yhat_upper"]).issubset(
+        set(fframe.sample.columns)
+    )
+
+    train_answer, test_answer = fframe._run_ensembles(train_df, test_df)
+
+    for result, answer in [(train_df, train_answer), (test_df, test_answer)]:
+
+        assert set(["prophet_yhat", "prophet_yhat_upper"]).issubset(set(answer.columns))
+        assert len(result) == len(answer)
+
+
 def test__split_scale_and_feature_engineering():
     fframe = testing.get_test_fframe()
 
@@ -141,6 +173,7 @@ def test__split_scale_and_feature_engineering():
 
 
 if __name__ == "__main__":
+    test__run_ensembles()
     test__split_scale_and_feature_engineering()
     test__run_scaler_pipeline()
 

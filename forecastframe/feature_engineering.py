@@ -771,16 +771,16 @@ def _predict_prophet(model_object, df=None, *args, **kwargs):
         made on the history.
     """
     if df is None:
-        df = model_object.model.history.copy()
+        df = model_object.history.copy()
     else:
         if df.shape[0] == 0:
             raise ValueError("Dataframe has no rows.")
-        df = model_object.model.setup_dataframe(df.copy())
+        df = model_object.setup_dataframe(df.copy())
 
-    df["trend"] = model_object.model.predict_trend(df)
-    seasonal_components = model_object.model.predict_seasonal_components(df)
-    if model_object.model.uncertainty_samples:
-        intervals = model_object.model.predict_uncertainty(df)
+    df["trend"] = model_object.predict_trend(df)
+    seasonal_components = model_object.predict_seasonal_components(df)
+    if model_object.uncertainty_samples:
+        intervals = model_object.predict_uncertainty(df)
     else:
         intervals = None
 
@@ -789,14 +789,15 @@ def _predict_prophet(model_object, df=None, *args, **kwargs):
         df2["trend"] * (1 + df2["multiplicative_terms"]) + df2["additive_terms"]
     )
 
-    columns_to_keep = list(model_object.model.history.columns)
+    columns_to_keep = list(model_object.history.columns)
     for col in ["y_scaled", "t"]:
         columns_to_keep.remove(col)
 
+    if "floor" in columns_to_keep:
+        columns_to_keep.remove("floor")
+
     for col in [
         "trend",
-        "trend_lower",
-        "trend_upper",
         "yhat_upper",
         "yhat_lower",
         "yhat",
@@ -806,32 +807,70 @@ def _predict_prophet(model_object, df=None, *args, **kwargs):
     return df2[columns_to_keep].rename(
         {
             col: "prophet_" + col
-            for col in [
-                "trend",
-                "trend_lower",
-                "trend_upper",
-                "yhat_upper",
-                "yhat_lower",
-                "yhat",
-            ]
+            for col in ["trend", "yhat_upper", "yhat_lower", "yhat", "floor"]
         },
         axis=1,
+        errors="ignore",
     )
 
 
-def fit_prophet(self, attribute: str = "sample", *args, **kwargs):
+def calc_prophet_forecasts(self, train_df=None, test_df=None, *args, **kwargs):
     """
-    Add Prophet forecasts to your dataframe
+    Add Prophet forecasts to your dataframe(s).
 
     Parameters
     ----------
-    attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
-        later processing.
-    additional_regressors : List(str), default None
-        A list of additional regressors to pass to Prophet
+    train_df : pd.DataFrame, default None
+        The DataFrame you want to train the Prophet model on. If nothing is passed, the function will
+        train and predict on self.sample
+    test_df : pd.DataFrame, default None
+        If a pd.DataFrame is passed, will return predictions on the second dataframe as well
+    """
 
+    def _preprocess(df):
+        df.reset_index(inplace=True)
+        df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
+        return df
+
+    def _postprocess(df):
+        df.rename({"ds": self.datetime_column, "y": self.target}, axis=1, inplace=True)
+        df.set_index(self.datetime_column, inplace=True)
+        return df
+
+    if not isinstance(train_df, pd.DataFrame):
+        self.ensemble_list.append((calc_prophet_forecasts, args, kwargs))
+
+        train_df = getattr(self, "sample")
+
+    if sum(train_df[self.target].isna()) > 0:
+        raise ValueError(
+            "DataFrame's target column contains nulls values. Please fix before building Prophet forecasts."
+        )
+
+    train_df = _preprocess(train_df)
+    model = _fit_prophet(data=train_df, *args, **kwargs)
+
+    train_df = _predict_prophet(model_object=model)
+    train_df = _postprocess(train_df)
+
+    if isinstance(test_df, pd.DataFrame):
+        test_df = _preprocess(test_df)
+        test_df = _predict_prophet(model_object=model, df2=test_df)
+        test_df = _postprocess(test_df)
+        return train_df, test_df
+    else:
+        setattr(self, "sample", train_df)
+
+
+def _fit_prophet(data, *args, **kwargs):
+    """
+    Fits a Prophet model.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        The dataframe you want to use to fit your Prophet object
+    
     Additional Parameters (passed as *args or **kwargs to Prophet)
     ----------
     interval_width: float, default .95
@@ -907,47 +946,16 @@ def fit_prophet(self, attribute: str = "sample", *args, **kwargs):
     """
     from fbprophet import Prophet
 
-    if attribute == "sample":
-        self.ensemble_list.append(
-            {
-                "training_func": fit_prophet,
-                "prediction_func": predict_prophet,
-                "args": args,
-                "kwargs": kwargs,
-            }
-        )
-
-    data = getattr(self, attribute)
-    data.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
-
     if "additional_regressors" in kwargs.keys():
-        (
-            model.add_regressor(regressor)
-            for regressor in kwargs["additional_regressors"]
-        )
-        kwargs.pop("additional_regressors")
+        additional_regressors = kwargs.pop("additional_regressors")
+    else:
+        additional_regressors = None
 
-    model = Prophet(data, *args, **kwargs,)
+    model = Prophet(*args, **kwargs)
+
+    if additional_regressors:
+        (model.add_regressor(regressor) for regressor in additional_regressors)
+
     model = model.fit(data)
 
     return model
-
-
-def predict_prophet(self, model_obj, df):
-    """
-    Use a Prophet modeling object to predict on a new dataframe
-    model_obj : Prophet.model
-        A Prophet modeling object
-    df : pd.DataFrame
-        The pandas dataframe you want to predict on
-    """
-
-    df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
-
-    output_df = _prophet_predict(model_object=model_obj, df=df)
-
-    output_df.rename(
-        {"ds": self.datetime_column, "y": self.target}, axis=1, inplace=True
-    )
-
-    return output_df

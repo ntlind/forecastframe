@@ -862,15 +862,10 @@ def _run_ensembles(self, train, test):
     attribute = "inprogress"
     setattr(self, attribute, train)
 
-    for ensemble_dict in self.ensemble_list:
-        training_func = ensemble_dict["training_func"]
-        prediction_func = ensemble_dict["prediction_func"]
-        args = ensemble_dict.get("args")
-        kwargs = ensemble_dict.get("kwargs")
+    for ensemble in self.ensemble_list:
+        func, args, kwargs = ensemble
 
-        model = training_func(train, *args, **kwargs)
-
-        train, test = (prediction_func(model_obj=model, df=df) for df in (train, test))
+        train, test = func(self, train_df=train, test_df=test, *args, **kwargs)
 
     return (train, test)
 

@@ -99,6 +99,7 @@ class ForecastFrame:
         calc_percent_relative_to_threshold,
         calc_percent_change,
         join_demographics,
+        calc_prophet_forecasts,
     )
 
     from forecastframe.transform import (
@@ -125,6 +126,7 @@ class ForecastFrame:
         _run_scaler_pipeline,
         _split_scale_and_feature_engineering,
         _run_feature_engineering,
+        _run_ensembles,
     )
 
     from forecastframe.io import save_fframe

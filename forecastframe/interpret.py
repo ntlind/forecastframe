@@ -95,16 +95,18 @@ def summarize_performance_over_time(
     TODO period not implemented
     """
 
+    today = max(self.data.index)
+    last_month = today - datetime.timedelta(days=30)
+    last_2_months = today - datetime.timedelta(days=60)
+    last_3_months = today - datetime.timedelta(days=90)
+    last_year = today - datetime.timedelta(days=365)
+    last_year_plus_1_month = today - datetime.timedelta(days=335)
+    last_year_minus_1_month = today - datetime.timedelta(days=395)
+
     def _get_performance_summary(self, error_type):
 
-        today = max(self.data.index)
-        last_month = today - datetime.timedelta(days=30)
-        last_year = today - datetime.timedelta(days=365)
-        last_year_plus_1_month = today - datetime.timedelta(days=335)
-        last_year_minus_1_month = today - datetime.timedelta(days=395)
-
         self.calc_all_error_metrics(date_range=(last_month, today))
-        self.calc_all_error_metrics(date_range=(last_year, today))
+        self.calc_all_error_metrics(date_range=(last_3_months, today))
         self.calc_all_error_metrics(date_range=(last_year, last_year_plus_1_month))
         self.calc_all_error_metrics(date_range=(last_year_minus_1_month, last_year))
 
@@ -114,9 +116,10 @@ def summarize_performance_over_time(
             self,
             f"fold_errors_{last_month.strftime('%Y-%m-%d')}_{today.strftime('%Y-%m-%d')}",
         )[max(self.fold_errors.keys())]["Out-of-Sample " + error_type].median()
-        oos_error_annual_median = getattr(
+
+        oos_error_three_period_median = getattr(
             self,
-            f"fold_errors_{last_year.strftime('%Y-%m-%d')}_{today.strftime('%Y-%m-%d')}",
+            f"fold_errors_{last_3_months.strftime('%Y-%m-%d')}_{today.strftime('%Y-%m-%d')}",
         )[max(self.fold_errors.keys())]["Out-of-Sample " + error_type].median()
 
         oos_error_one_year_ago = getattr(
@@ -135,19 +138,51 @@ def summarize_performance_over_time(
             "decrease" if next_month_error_change < 0 else "increase"
         )
 
-        # Where you left-off: out-of-sample data can' tbe guaranteed to go back a year, so this summary won't work
-        # Instead, could describe trends in actuals over the past few months and then describe how predictions for the coming month may vary
-        return f"Performance: Our out-of-sample {error_type} was {oos_error_last_month} in the prior {period}, compared to an average error of {oos_error_annual_median} over the past year. We expect forecast error to {next_month_error_change_sign} by {_format_percentage(next_month_error_change)} during the coming {period} based on historical trends."
+        return f"Performance: Our out-of-sample {error_type} was {oos_error_last_month} in the prior {period}, compared to an average error of {oos_error_three_periods} over the past three {period}s."
 
     def get_comparison_to_plan_summary():
         # TODO intending to build this in at a later stage
         summary = "Sales in the prior week beat planned estimates by 19.6%, improving a three-month spread of 13.4%. Quantile's weekly forecasts continue to outperform the planned estimates by 8.4% over a three-month period."
         pass
 
-    def get_target_trends():
-        summary = "Trends: Sales spiked by 24.2% in December, which is a 2.4% increase over the 21.8% spike we saw last year. We expect sales to continue trending upward through February, at which time they're likely to decrease by 18.4% over the course of the month."
+    def get_target_trends(self):
+        def _calc_percent_change(new, old):
+            return _format_percentage((new - old) / old)
 
-    return _get_performance_summary(self, error_type=error_type)
+        sum_target_two_months_ago = self.data.loc[
+            (self.data[self.datetime_column] >= last_2_months)
+            & (self.data[self.datetime_column] <= last_months),
+            self.target,
+        ]
+        sum_target_last_month = self.data.loc[
+            (self.data[self.datetime_column] >= last_months)
+            & (self.data[self.datetime_column] <= today),
+            self.target,
+        ]
+        target_growth_prior_month = _calc_percent_change(
+            sum_target_last_month, sum_target_two_months_ago
+        )
+        growth_sign = "grew" if target_growth_prior_month > 0 else "fell"
+
+        sum_target_last_year = self.data.loc[
+            (
+                self.data[self.datetime_column]
+                >= (last_month - datetime.timedelta(days=365))
+            )
+            & (
+                self.data[self.datetime_column]
+                <= (today - datetime.timedelta(days=365))
+            ),
+            self.target,
+        ]
+        yoy_growth = _calc_percent_change(sum_target_last_month, sum_target_last_year)
+        diff_sign = "up" if yoy_change > 0 else "down"
+
+        summary = f"Trends: Sales {growth_sign} by {target_growth_prior_month} last month, {diff_sign} {yoy_change} over the prevoius year. We expect sales to continue trending upwards in the coming month."
+
+    return ". ".join(
+        [_get_performance_summary(self, error_type=error_type), get_target_trends(self)]
+    )
 
 
 def summarize_fit(self, error_type="APE", return_string=None):
