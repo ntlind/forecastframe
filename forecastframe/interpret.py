@@ -12,6 +12,8 @@ from forecastframe.utilities import (
     _search_list_for_substrings,
 )
 
+import forecastframe.model as model
+
 from IPython.core.display import display, Markdown
 
 ## Helper functions
@@ -262,7 +264,15 @@ def _plot_lineplot_over_time(data, groupers):
 
 
 ## Summaries
-def summarize_shap(self):
+def summarize_shap(self, return_string=False):
+    """
+    Summarize the SHAP values of our LightGBM estimator
+
+    Parameters
+    ----------
+    return_string : bool, default False
+        If true, returns a string rather than an IPython Markdown object
+    """
 
     sorted_shap_values = self.calc_sorted_shap_features()
 
@@ -297,11 +307,16 @@ def summarize_shap(self):
 
     statistical_summary = f"**Statistical Features**: Statistical features make up {count_statistical_features} of the top {min(len(sorted_features), 10)} features, contributing {_format_percentage(statistical_features_shap_perc)} of this week's predicted values. {stat_recommendation}"
 
-    return Markdown("\n\n".join([demand_summary, statistical_summary]))
+    output = "\n\n".join([demand_summary, statistical_summary])
+
+    if return_string:
+        return output
+    else:
+        return Markdown()
 
 
 def summarize_performance_over_time(
-    self, error_type="APE", period="month", return_string=None
+    self, error_type="APE", period="month", return_string=False
 ):
     """
     Summarize the findings of our k-fold cross-validation
@@ -317,6 +332,22 @@ def summarize_performance_over_time(
     TODO period not implemented
     """
 
+    def _get_seasonality_summary(self):
+        def _convert_int_to_month(integer):
+            return datetime.date(1900, integer, 1).strftime("%B")
+
+        target_sum_by_month = self.data.groupby(self.data.index.month)[
+            self.target
+        ].sum()
+        target_sum_by_month.sort_values(ascending=False, inplace=True)
+
+        agg_spike_period = target_sum_by_month.idxmax()
+        agg_spike = target_sum_by_month[agg_spike_period]
+        neg_agg_spike_period = target_sum_by_month.idxmin()
+        neg_agg_spike = target_sum_by_month[neg_agg_spike_period]
+
+        return f"**Seasonality**: Over the past year, we've seen aggregate {self.target} reach as high as {agg_spike} during the {period} of {_convert_int_to_month(agg_spike_period)} while dropping down to {neg_agg_spike} during {_convert_int_to_month(neg_agg_spike_period)}. "
+
     max_fold = _get_max_fold(self)
 
     today = max(self.data.index)
@@ -327,49 +358,7 @@ def summarize_performance_over_time(
     last_year_plus_1_month = today - datetime.timedelta(days=335)
     last_year_minus_1_month = today - datetime.timedelta(days=395)
 
-    def _get_performance_summary(self, error_type):
-
-        self.calc_all_error_metrics(date_range=(last_month, today))
-        self.calc_all_error_metrics(date_range=(last_3_months, today))
-        self.calc_all_error_metrics(date_range=(last_year, last_year_plus_1_month))
-        self.calc_all_error_metrics(date_range=(last_year_minus_1_month, last_year))
-
-        self.processed_outputs["4_OOS"].to_csv("blah.csv")
-
-        oos_error_last_month = getattr(
-            self,
-            f"fold_errors_{last_month.strftime('%Y-%m-%d')}_{today.strftime('%Y-%m-%d')}",
-        )[max_fold]["Out-of-Sample " + error_type].median()
-
-        oos_error_three_period_median = getattr(
-            self,
-            f"fold_errors_{last_3_months.strftime('%Y-%m-%d')}_{today.strftime('%Y-%m-%d')}",
-        )[max_fold]["Out-of-Sample " + error_type].median()
-
-        oos_error_one_year_ago = getattr(
-            self,
-            f"fold_errors_{last_year_minus_1_month.strftime('%Y-%m-%d')}_{last_year.strftime('%Y-%m-%d')}",
-        )[max_fold]["Out-of-Sample " + error_type].median()
-        oos_error_next_month_one_year_ago = getattr(
-            self,
-            f"fold_errors_{last_year.strftime('%Y-%m-%d')}_{last_year_plus_1_month.strftime('%Y-%m-%d')}",
-        )[max_fold]["Out-of-Sample " + error_type].median()
-
-        next_month_error_change = (
-            oos_error_next_month_one_year_ago - oos_error_one_year_ago
-        ) / (oos_error_one_year_ago)
-        next_month_error_change_sign = (
-            "decrease" if next_month_error_change < 0 else "increase"
-        )
-
-        return f"Performance: Our out-of-sample {error_type} was {oos_error_last_month} in the prior {period}, compared to an average error of {_format_percentage(oos_error_three_period_median)} over the past three {period}s."
-
-    def get_comparison_to_plan_summary():
-        # TODO intending to build this in at a later stage
-        summary = "Sales in the prior week beat planned estimates by 19.6%, improving a three-month spread of 13.4%. Quantile's weekly forecasts continue to outperform the planned estimates by 8.4% over a three-month period."
-        pass
-
-    def get_target_trends(self):
+    def _get_target_trends(self):
         def _calc_percent_change(new, old):
             return (new - old) / old
 
@@ -393,20 +382,18 @@ def summarize_performance_over_time(
         yoy_growth = _calc_percent_change(sum_target_last_month, sum_target_last_year)
         diff_sign = "up" if yoy_growth > 0 else "down"
 
-        summary = f"Trends: Sales {growth_sign} by {target_growth_prior_month} last month, {diff_sign} {yoy_growth} over the previous year. We expect sales to continue trending upwards in the coming month."
+        summary = f"**Trends**: Sales {growth_sign} by {target_growth_prior_month} last month, {diff_sign} {yoy_growth} over the previous year. We expect sales to continue trending upwards in the coming month."
         return summary
 
-    return Markdown(
-        "\n\n".join(
-            [
-                _get_performance_summary(self, error_type=error_type),
-                get_target_trends(self),
-            ]
-        )
-    )
+    output = "\n\n".join([_get_target_trends(self), _get_seasonality_summary(self),])
+
+    if return_string:
+        return output
+    else:
+        return Markdown(output)
 
 
-def summarize_fit(self, error_type="APE", return_string=None):
+def summarize_fit(self, error_type="APE", return_string=False):
     """
     Summarize the findings of our k-fold cross-validation
 
