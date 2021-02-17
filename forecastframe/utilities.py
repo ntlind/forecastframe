@@ -386,3 +386,9 @@ def _calc_weighted_average(values, weights):
     """Helper function to take the weighted average when your series have nulls"""
     mask = ~np.isnan(values)
     return np.average(values[mask], weights=weights[mask])
+
+
+def _search_list_for_substrings(string_list, substr_list):
+    """Return a list of strings containing any of a list of substrings"""
+    return [str for str in string_list if any(sub in str for sub in substr_list)]
+

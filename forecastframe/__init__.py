@@ -151,13 +151,14 @@ class ForecastFrame:
         plot_fold_distributions,
         summarize_fit,
         summarize_performance_over_time,
-        calc_SHAP_values,
-        plot_SHAP_decision,
-        plot_SHAP_force,
-        plot_SHAP_importance,
-        plot_SHAP_dependence,
-        plot_SHAP_waterfall,
-        _list_most_important_features,
+        summarize_shap,
+        calc_shap_values,
+        plot_shap_decision,
+        plot_shap_force,
+        plot_shap_importance,
+        plot_shap_dependence,
+        plot_shap_waterfall,
+        calc_sorted_shap_features,
     )
 
     def __repr__(self):

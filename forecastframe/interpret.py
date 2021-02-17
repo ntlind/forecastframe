@@ -9,6 +9,7 @@ from forecastframe.utilities import (
     _get_processed_outputs,
     _convert_nonnumerics_to_objects,
     _calc_weighted_average,
+    _search_list_for_substrings,
 )
 
 from IPython.core.display import display, Markdown
@@ -261,8 +262,42 @@ def _plot_lineplot_over_time(data, groupers):
 
 
 ## Summaries
-def summarize_shap():
-    pass
+def summarize_shap(self):
+
+    sorted_shap_values = self.calc_sorted_shap_features()
+
+    sorted_features = sorted_shap_values["feature"].values
+    top_features_text = f"{sorted_features[0]}, {sorted_features[1]}, {sorted_features[2]}, and {sorted_features[3]}"
+
+    shap_means = sorted_shap_values["value"].values
+    top_4_shap_perc = shap_means[:4].sum() / shap_means.sum()
+
+    bottom_features_text = f"{sorted_features[-4]}, {sorted_features[-3]}, {sorted_features[-2]}, and {sorted_features[-1]}"
+    bottom_4_shap_perc = shap_means[-4:].sum() / shap_means.sum()
+
+    demand_summary = f"**Demand Drivers**: The most important features in this last run were {top_features_text}, accounting for {_format_percentage(top_4_shap_perc)} of the variability in our SHAP values. The least important features were {bottom_features_text}, accounting for approximately {_format_percentage(bottom_4_shap_perc)} of our SHAP's variance."
+
+    top_statistical_features = _search_list_for_substrings(
+        string_list=sorted_shap_values.loc[: min(10, len(sorted_features)), "feature"],
+        substr_list=["ewma_roll", "sum_roll", "mean_roll"],
+    )
+    count_statistical_features = len(top_statistical_features)
+    statistical_features_shap_perc = (
+        sorted_shap_values.loc[
+            sorted_shap_values["feature"].isin(top_statistical_features), "value"
+        ].sum()
+        / shap_means.sum()
+    )
+
+    if statistical_features_shap_perc > 0.33:
+        stat_recommendation = "Given the importance of statistical features in this last run, you may consider adding additional rolling funtions (e.g., skew, kurtosis) and/or window periods to your feature set for future runs."
+        self.alerts["shap"] = stat_recommendation
+    else:
+        stat_recommendation = ""
+
+    statistical_summary = f"**Statistical Features**: Statistical features make up {count_statistical_features} of the top {min(len(sorted_features), 10)} features, contributing {_format_percentage(statistical_features_shap_perc)} of this week's predicted values. {stat_recommendation}"
+
+    return Markdown("\n\n".join([demand_summary, statistical_summary]))
 
 
 def summarize_performance_over_time(
@@ -484,7 +519,7 @@ def summarize_fit(self, error_type="APE", return_string=None):
 
 
 ## SHAP
-def calc_SHAP_values(self, fold=None, sample="OOS"):
+def calc_shap_values(self, fold=None, sample="OOS"):
 
     if not fold:
         fold = _get_max_fold(self)
@@ -497,7 +532,7 @@ def calc_SHAP_values(self, fold=None, sample="OOS"):
     setattr(self, "shap_explainer_values", (explainer, shap_values, input_df))
 
 
-def _assert_and_unpack_SHAP_values(self):
+def _assert_and_unpack_shap_values(self):
     assert (
         self.shap_explainer_values
     ), "Please calculate your SHAP values before plotting them."
@@ -505,19 +540,25 @@ def _assert_and_unpack_SHAP_values(self):
     return self.shap_explainer_values
 
 
-def _list_most_important_features(self):
-    explainer, shap_values, input_df = _assert_and_unpack_SHAP_values(self)
+def calc_sorted_shap_features(self):
 
-    input_df.columns[np.argsort(np.abs(shap_values).mean(0))][::-1]
+    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+
+    mean_shap_values = np.abs(shap_values).mean(0)
+
+    feature_list = input_df.columns[np.argsort(np.abs(shap_values).mean(0))][::-1]
+    feature_values = mean_shap_values[np.argsort(mean_shap_values)][::-1]
+
+    return pd.DataFrame.from_dict({"feature": feature_list, "value": feature_values})
 
 
 def _get_default_slicer(input_df):
     return list(range(min(len(input_df), 1000)))
 
 
-def plot_SHAP_decision(self, slicer=None, show=True, *args, **kwargs):
+def plot_shap_decision(self, slicer=None, show=True, *args, **kwargs):
 
-    explainer, shap_values, input_df = _assert_and_unpack_SHAP_values(self)
+    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
 
     if slicer is None:
         slicer = _get_default_slicer(input_df)
@@ -532,7 +573,7 @@ def plot_SHAP_decision(self, slicer=None, show=True, *args, **kwargs):
     )
 
 
-def plot_SHAP_importance(self, show=True, *args, **kwargs):
+def plot_shap_importance(self, show=True, *args, **kwargs):
     """
     Plot a SHAP feature importance plot.
 
@@ -541,15 +582,15 @@ def plot_SHAP_importance(self, show=True, *args, **kwargs):
     plot_type : str, default = "dot", 
         What type of summary plot to produce. Note that "compact_dot" is only used for SHAP interaction values. Options are "dot" (default for single output), "bar" (default for multi-output), "violin", or "compact_dot".
     """
-    explainer, shap_values, input_df = _assert_and_unpack_SHAP_values(self)
+    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
 
     return shap.summary_plot(shap_values, input_df, show=show, *args, **kwargs)
 
 
-def plot_SHAP_dependence(
+def plot_shap_dependence(
     self, column_name, color_column=None, show=True, *args, **kwargs
 ):
-    explainer, shap_values, input_df = _assert_and_unpack_SHAP_values(self)
+    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
 
     if not color_column:
         color_column = column_name
@@ -565,8 +606,23 @@ def plot_SHAP_dependence(
     )
 
 
-def plot_SHAP_waterfall(self, row=0, *args, **kwargs):
-    explainer, shap_values, input_df = _assert_and_unpack_SHAP_values(self)
+def plot_shap_cohort(self, cohort, show=True, *args, **kwargs):
+    raise NotImplementedError(
+        "Requires shap.Explainer to work with lightGBM models. See here: \
+        https://shap.readthedocs.io/en/latest/example_notebooks/api_examples/plots/bar.html"
+    )
+
+    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+
+    cohort = list(input_df[cohort])
+
+    return shap.plots.bar(
+        shap_values.cohorts(cohort).abs.mean(0), show=show, *args, **kwargs
+    )
+
+
+def plot_shap_waterfall(self, row, *args, **kwargs):
+    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
 
     # hack to get waterfall api to work with TreeExplainer
     class ShapObject:
@@ -586,8 +642,9 @@ def plot_SHAP_waterfall(self, row=0, *args, **kwargs):
     return shap.waterfall_plot(shap_object, *args, **kwargs)
 
 
-def plot_SHAP_force(self, slicer=None, show=False, *args, **kwargs):
-    explainer, shap_values, input_df = _assert_and_unpack_SHAP_values(self)
+def plot_shap_force(self, slicer=None, show=False, *args, **kwargs):
+    shap.initjs()
+    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
 
     if slicer is None:
         slicer = _get_default_slicer(input_df)
