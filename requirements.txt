@@ -7,3 +7,8 @@ psutil
 tqdm
 streamlit
 fbprophet
+lightgbm
+datetime
+altair
+pickle
+os
