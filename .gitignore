@@ -1,5 +1,6 @@
 .vscode/
 mappings/
+.data/
 quick_saves/
 __pycache__/
 *.pkl

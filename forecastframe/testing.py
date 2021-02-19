@@ -51,7 +51,7 @@ def get_test_fframe(convert_dtypes=True, df=get_test_example(), with_results=Fal
     Return a made-up dataframe using the ff.forecastframe class
     """
 
-    fframe = ff.forecastframe(
+    fframe = ff.ForecastFrame(
         data=df,
         hierarchy=["category", "product", "state", "store"],
         datetime_column="datetime",
