@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import pytest
 
-from forecastframe import ForecastFrame
+import forecastframe as ff
 
 
 @pytest.mark.skip(reason="shortcut for default pandas behavior")
@@ -48,10 +48,10 @@ def get_test_example(convert_dtypes=True):
 @pytest.mark.skip(reason="shortcut for default pandas behavior")
 def get_test_fframe(convert_dtypes=True, df=get_test_example(), with_results=False):
     """
-    Return a made-up dataframe using the ForecastFrame class
+    Return a made-up dataframe using the ff.forecastframe class
     """
 
-    fframe = ForecastFrame(
+    fframe = ff.forecastframe(
         data=df,
         hierarchy=["category", "product", "state", "store"],
         datetime_column="datetime",
