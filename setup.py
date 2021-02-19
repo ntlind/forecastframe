@@ -8,5 +8,5 @@ setup(
     maintainer_email="nick@quantilegroup.com",
     description="Granular, accurate, and interpretable forecasting made easy",
     platforms="any",
-    python_requires=">=3.7.1",
+    python_requires=">=3.6.1",
 )
