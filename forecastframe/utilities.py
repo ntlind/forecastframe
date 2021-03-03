@@ -392,3 +392,24 @@ def _search_list_for_substrings(string_list, substr_list):
     """Return a list of strings containing any of a list of substrings"""
     return [str for str in string_list if any(sub in str for sub in substr_list)]
 
+
+def _get_date_differences(self):
+    """Return a set of possible date differences to use in lag calculations"""
+    return set((self.data.index.to_series() - self.data.index.max()).dt.days)
+
+
+def _trace_calls(self):
+    """Print function calls as they are ran"""
+
+    def tracefunc(frame, event, arg, indent=[0]):
+        if event == "call":
+            indent[0] += 2
+            print("-" * indent[0] + "> call function", frame.f_code.co_name)
+        elif event == "return":
+            print("<" + "-" * indent[0], "exit function", frame.f_code.co_name)
+            indent[0] -= 2
+        return tracefunc
+
+    import sys
+
+    sys.setprofile(tracefunc)

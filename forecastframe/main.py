@@ -119,6 +119,8 @@ class ForecastFrame:
         _reset_hierarchy_index,
         _reset_date_index,
         _reset_index,
+        _get_date_differences,
+        _trace_calls,
     )
 
     from forecastframe.interpret import (
