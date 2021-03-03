@@ -39,6 +39,28 @@ def _compress(data: pd.DataFrame):
     return data
 
 
+def correct_negatives(self, features=None, replace_value=0):
+    """
+    Replace negative values in a given list of features with replace_value if they are below zero.
+    Often used before logging features to avoid dropping out test metrics.
+
+    Parameters
+    ----------
+    features: str or List[str], default None
+        The feature or list of features you want to correct
+    replace_value: int
+        The value you want to replace negative value with.
+    """
+    if not features:
+        features = self.target
+
+    features = utilities._ensure_is_list(features)
+
+    for feature in features:
+        self.data.loc[self.data[feature] < 0, feature] = replace_value
+        self.sample.loc[self.sample[feature] < 0, feature] = replace_value
+
+
 def compress(self, attribute: str = "data"):
     """
     Losslessly downcast self object and convert objects to categories to save memory.
@@ -58,7 +80,7 @@ def compress(self, attribute: str = "data"):
 
 def _assert_non_negative_values(array):
     """Assert that there aren't any negative numbers in an array, which will cause problems during log transformation"""
-    if array.lt(0).sum().sum() > 0:
+    if (array.lt(0) & array.notna()).sum().sum() > 0:
         raise ValueError(
             "There are negative values in your data which will cause problems during your log transform. Please correct any negative values before transforming."
         )

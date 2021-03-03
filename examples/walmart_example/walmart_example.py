@@ -18,6 +18,8 @@ print(len(train[train["Weekly_Sales"] < 0]) / len(train))
 
 # manually correct negative values
 train.loc[train["Weekly_Sales"] < 0, "Weekly_Sales"] = 0
+train = train[(train["Dept"] == 1)]
+print(train.shape)
 
 train, test = [
     df.drop("IsHoliday", axis=1)
@@ -50,3 +52,7 @@ fframe.cross_validate_model(
 )
 
 fframe.save_fframe("POST-MODEL.pkl")
+
+fframe.fold_errors[4]
+
+print(train.shape)

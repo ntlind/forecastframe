@@ -26,7 +26,7 @@ def test_io():
     fframe = testing.get_test_fframe()
 
     # add features and scalers to be sure everything is stored in loaded fframe
-    fframe.log_features(features=["sales_int"])
+    fframe.standardize_features(features=["sales_int"])
     fframe.calc_days_since_release()
     fframe.calc_datetime_features()
     fframe.calc_percent_change()
@@ -49,7 +49,10 @@ def test_io():
     assert fframe.hierarchy == loaded_fframe.hierarchy
     assert fframe.datetime_column == loaded_fframe.datetime_column
     assert fframe.target == loaded_fframe.target
-    assert fframe.transforms == loaded_fframe.transforms
+    assert (
+        fframe.transforms["standardize"]["mean"]
+        == loaded_fframe.transforms["standardize"]["mean"]
+    ).all()
     assert fframe.scalers_list == loaded_fframe.scalers_list
     assert fframe.function_list == fframe.function_list
 

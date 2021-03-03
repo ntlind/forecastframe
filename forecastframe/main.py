@@ -87,6 +87,7 @@ class ForecastFrame:
         descale_features,
         encode_categoricals,
         decode_categoricals,
+        correct_negatives,
         _descale_target,
     )
 

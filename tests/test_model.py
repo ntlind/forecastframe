@@ -5,7 +5,7 @@ from forecastframe import testing
 
 
 def test__run_scaler_pipeline():
-    fframe = testing.get_test_fframe()
+    fframe = testing.get_test_fframe(correct_negatives=True)
     initial_data = fframe.data.copy(deep=True)
     initial_sample = fframe.sample.copy(deep=True)
 
@@ -68,7 +68,7 @@ def test__run_ensembles():
 
 
 def test__split_scale_and_feature_engineering():
-    fframe = testing.get_test_fframe()
+    fframe = testing.get_test_fframe(correct_negatives=True)
 
     fframe.log_features(features=["sales_int"])
     fframe.normalize_features(features=["sales_float"])

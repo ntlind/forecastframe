@@ -46,7 +46,12 @@ def get_test_example(convert_dtypes=True):
 
 
 @pytest.mark.skip(reason="shortcut for default pandas behavior")
-def get_test_fframe(convert_dtypes=True, df=get_test_example(), with_results=False):
+def get_test_fframe(
+    convert_dtypes=True,
+    df=get_test_example(),
+    with_results=False,
+    correct_negatives=False,
+):
     """
     Return a made-up dataframe using the ff.forecastframe class
     """
@@ -57,6 +62,9 @@ def get_test_fframe(convert_dtypes=True, df=get_test_example(), with_results=Fal
         datetime_column="datetime",
         target="sales_int",
     )
+
+    if correct_negatives:
+        fframe.correct_negatives(features=["sales_int", "sales_float"])
 
     # used to test calc metrics
     if with_results:

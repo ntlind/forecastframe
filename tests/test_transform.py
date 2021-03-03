@@ -44,6 +44,40 @@ def test_fill_missings():
     assert third_answer == 5
 
 
+def test_correct_negatives():
+    fframe = testing.get_test_fframe()
+    fframe.correct_negatives()
+
+    result = fframe.data[fframe.target].values
+    answer = np.array(
+        [113.0, 10000.0, 214.0, 123.0, 5.0, np.nan, 0.0, 0.0, 2.0, 4.0, 10.0, 0.0,]
+    )
+    diff = abs(np.nansum(result - answer))
+    assert diff <= testing._get_difference_threshold()
+    fframe.correct_negatives(features=["sales_int", "sales_float"])
+
+    result = fframe.data[["sales_int", "sales_float"]].values
+    answer = np.array(
+        [
+            [1.1300e02, 1.1321e02],
+            [1.0000e04, 1.0000e04],
+            [2.1400e02, np.nan],
+            [1.2300e02, 1.2321e02],
+            [5.0000e00, 5.1000e00],
+            [np.nan, np.nan],
+            [0.0000e00, 0.0000e00],
+            [0.0000e00, 0.0000e00],
+            [2.0000e00, 2.1000e00],
+            [4.0000e00, 4.1000e00],
+            [1.0000e01, 1.0200e01],
+            [0.0000e00, 0.0000e00],
+        ]
+    )
+
+    diff = abs(np.nansum(result - answer))
+    assert diff <= testing._get_difference_threshold()
+
+
 def test_fill_missings_backward():
     fframe = testing.get_test_fframe()
 
@@ -122,28 +156,15 @@ def test_decode_categoricals():
 
 
 def test_log_features():
-    fframe = testing.get_test_fframe()
+    fframe = testing.get_test_fframe(correct_negatives=True)
+
+    print(fframe.data)
 
     fframe.log_features("sales_float")
 
     result = fframe.get_sample()["sales_float"].values
     answer = pd.Series(
-        np.log1p(
-            [
-                113.21,
-                10000,
-                np.nan,
-                123.21,
-                5.1,
-                np.nan,
-                0,
-                -20.1,
-                2.1,
-                4.1,
-                10.2,
-                -10.1,
-            ]
-        )
+        np.log1p([113.21, 10000, np.nan, 123.21, 5.1, np.nan, 0, 0, 2.1, 4.1, 10.2, 0,])
     )
     diff = abs(np.nansum(result - answer))
     assert diff <= testing._get_difference_threshold()
@@ -181,7 +202,7 @@ def test_normalize_features():
 
 def test_descale_features():
     pd.set_option("display.float_format", lambda x: "%.5f" % x)
-    fframe = testing.get_test_fframe()
+    fframe = testing.get_test_fframe(correct_negatives=True)
 
     fframe.log_features(["sales_int"])
 
@@ -189,34 +210,34 @@ def test_descale_features():
     fframe.descale_features()
 
     result = fframe.get_sample()[["sales_int", "sales_float"]].values
-    answer = testing.get_test_fframe().get_sample()[["sales_int", "sales_float"]].values
+    answer = testing.get_test_fframe(correct_negatives=True).get_sample()[["sales_int", "sales_float"]].values
     diff = abs(np.nansum(result - answer))
     assert diff <= testing._get_difference_threshold()
 
 
 def test__descale_target():
 
-    fframe = testing.get_test_fframe()
+    fframe = testing.get_test_fframe(correct_negatives=True)
 
     fframe.log_features(["sales_int"])
-    first_result = fframe._descale_target(fframe.data[["sales_int"]])
+    first_result = fframe._descale_target(fframe.sample[["sales_int"]])
     fframe.descale_features()
 
     fframe.standardize_features(["sales_int"])
-    second_result = fframe._descale_target(fframe.data[["sales_int"]])
+    second_result = fframe._descale_target(fframe.sample[["sales_int"]])
     fframe.descale_features()
 
     fframe.normalize_features(["sales_int"])
-    third_result = fframe._descale_target(fframe.data[["sales_int"]])
+    third_result = fframe._descale_target(fframe.sample[["sales_int"]])
     fframe.descale_features()
 
-    fourth_result = fframe._descale_target(fframe.data[["sales_int"]])
+    fourth_result = fframe._descale_target(fframe.sample[["sales_int"]])
     fframe.descale_features()
 
-    answer = testing.get_test_example()["sales_int"]
+    answer = testing.get_test_fframe(correct_negatives=True).sample["sales_int"]
 
     for result in [first_result, second_result, third_result, fourth_result]:
-        diff = abs(np.nansum(result - answer))
+        diff = abs(np.nansum(result.values - answer.values))
 
         assert diff <= testing._get_difference_threshold()
 
@@ -224,7 +245,7 @@ def test__descale_target():
 def test__apply_transform_dict():
     from forecastframe.transform import _apply_transform_dict
 
-    data = testing.get_test_example()
+    data = testing.get_test_fframe(correct_negatives=True).data
     initial_data = data.copy(deep=True)
 
     result = _apply_transform_dict(
@@ -256,6 +277,7 @@ if __name__ == "__main__":
     test_fill_missings_backward()
     test_fill_missings_subset()
     test_compress()
+    test_correct_negatives()
     test_log_features()
     test_standardize_features()
     test_normalize_features()
