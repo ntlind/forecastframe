@@ -24,7 +24,9 @@ def _compress(data: pd.DataFrame):
     }
 
     for type_ in ["integer", "float", "object"]:
-        column_list = utilities._get_columns_of_type(data, include=numeric_lookup_dict[type_])
+        column_list = utilities._get_columns_of_type(
+            data, include=numeric_lookup_dict[type_]
+        )
 
         if not column_list:
             continue
@@ -54,8 +56,17 @@ def compress(self, attribute: str = "data"):
     setattr(self, attribute, output)
 
 
+def _assert_non_negative_values(array):
+    """Assert that there aren't any negative numbers in an array, which will cause problems during log transformation"""
+    if array.lt(0).sum().sum() > 0:
+        raise ValueError(
+            "There are negative values in your data which will cause problems during your log transform. Please correct any negative values before transforming."
+        )
+
+
 def _log_features(df, features: list):
     """Helper function to standardize features without overwriting self.data"""
+    _assert_non_negative_values(df[features])
 
     df[features] = np.log1p(df[features])
 
