@@ -74,7 +74,6 @@ class ForecastFrame:
         calc_percent_relative_to_threshold,
         calc_percent_change,
         join_demographics,
-        calc_prophet_forecasts,
     )
 
     from forecastframe.transform import (
@@ -92,8 +91,7 @@ class ForecastFrame:
     )
 
     from forecastframe.model import (
-        fit_insample_model,
-        cross_validate_model,
+        cross_validate_lgbm,
         process_outputs,
         calc_all_error_metrics,
         filter_outputs,
@@ -103,6 +101,7 @@ class ForecastFrame:
         _split_scale_and_feature_engineering,
         _run_feature_engineering,
         _run_ensembles,
+        calc_prophet_predictions,
     )
 
     from forecastframe.io import save_fframe

@@ -137,7 +137,7 @@ def _calc_best_estimator(
     X, y, params, estimator, scoring, splitter, cv_func, folds, n_jobs, verbose, n_iter,
 ):
     """
-    Intermediary function shared by fit_insample_model and cross_validate_model 
+    Intermediary function shared by fit_insample_model and cross_validate_lgbm 
     to fit an sklearn cross-validation method.
     """
     args = {
@@ -290,7 +290,7 @@ def filter_outputs(self, groupers=None, filter_func=lambda x: x.head(10)):
 def _handle_scoring_func(scoring_func, **kwargs):
     """
     Handles cases where we want to pass a scoring function, rather than the 
-    usual string. Used in fit_insample_model and cross_validate_models.
+    usual string. Used in cross_validate_lgbms.
     """
     if callable(scoring_func):
         return scoring_func(**kwargs)
@@ -298,98 +298,38 @@ def _handle_scoring_func(scoring_func, **kwargs):
         return scoring_func
 
 
-def fit_insample_model(
-    self,
-    params: dict,
-    estimator_func: object = _get_tweedie_lgbm,
-    splitter: object = LeaveOneGroupOut,
-    cv_func: object = RandomizedSearchCV,
-    folds: int = 5,
-    n_jobs: int = -1,
-    verbose: int = 0,
-    scaler: str = None,
-    features_to_scale: list = None,
-    n_iter: int = 10,
-    scoring_func: object = None,
-    **kwargs,
-):
+def predict_lgbm(self, predict_df):
     """
-    Searches for the best in-sample parameters using a specified cross-validation
-    strategy
-
+    Predict future occurences of an input df
+    
     Parameters
     ----------
-    params : dict
-        A dictionary of XGBoost parameters to explore.
-    estimator_func : function, default _get_quantile_lgbm
-        A function to create the LGBM estimator that you're intersted in using
-    splitter : object, default LeaveOneGroupOut
-        The strategy that sklearn uses to split your cross-validation set. Defaults to 
-        LeaveOneGroupOut.
-    cv_func : object, default RandomizedSearchCV
-        The search algorithm used to find the best parameters.
-    folds : int, default 5
-        Number of folds to use during cross-valdation
-    n_jobs : int, default -1
-        The processor parameter to pass to LightGBM. Defaults to using all cores.
-    verbose : int, default 0,
-        The verbose param to pass to LightGBM
-    scaler : str, default None
-        The scaling operation you'd like to use on your data. Should be one of 
-            "log", "standardize", or "normalize"
-    features_to_scale : list, default None
-        The features you'd like to scale. Only used if scaler is passed
-    n_iter : int, default 4
-        The number of iterations to run your CV search over
-    scoring_func: function, default None
-        The scoring parameter or custom scoring function to use.
+    predict_df: pd.DataFrame
+        The dataframe you'd like to run predictions on.
     """
-    self.compress()
 
-    estimator = estimator_func(**kwargs)
+    assert set(predict_df.columns).issubset(set(self.data.columns))
 
-    scoring = _handle_scoring_func(scoring_func, **kwargs)
+    scaled_df, transform_dict = self._run_scaler_pipeline([predict_df])
 
-    actuals = self.data[self.target].copy()
+    engineered_df = self._run_feature_engineering(scaled_df)
 
-    scaled_data, transform_dict = self._run_scaler_pipeline([self.data])
-
-    modeling_data = self._run_feature_engineering(scaled_data)
-
-    X, y = _split_frame(modeling_data, self.target)
-
-    estimator_dict = _calc_best_estimator(
-        X=X,
-        y=y,
-        params=params,
-        estimator=estimator,
-        splitter=splitter,
-        cv_func=cv_func,
-        folds=folds,
-        n_jobs=n_jobs,
-        verbose=verbose,
-        n_iter=n_iter,
-        scoring=scoring,
+    predictions = pd.Series(
+        fframe.results["best_estimator"].predict(predict_df),
+        index=predict_df[self.datetime_column],
     )
 
-    predictions = pd.Series(estimator_dict["best_estimator"].predict(X), index=X.index)
     descaled_predictions = self._descale_target(predictions, transform_dict)
 
-    results = {
-        "best_estimator": estimator_dict["best_estimator"],
-        "IS_predictions": descaled_predictions,
-        "IS_actuals": actuals,
-        "IS_input": X,
-        "best_IS_error": estimator_dict["best_error"],
-        "best_params": estimator_dict["best_params"],
-    }
+    predict_df["predictions"] = descaled_predictions
+    predict_df["scaled_predictions"] = predictions
 
-    setattr(self, "insample_results", results)
+    return predict_df
 
 
-def cross_validate_model(
+def cross_validate_lgbm(
     self,
-    params: dict,
+    params: dict = None,
     estimator_func: object = _get_tweedie_lgbm,
     splitter: object = LeaveOneGroupOut,
     cv_func: object = RandomizedSearchCV,
@@ -407,8 +347,8 @@ def cross_validate_model(
 
     Parameters
     ----------
-    params : dict
-        A dictionary of XGBoost parameters to explore.
+    params : dict, default None
+        A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
     estimator_func : function, default _get_quantile_lgbm
         A function to create the LGBM estimator that you're intersted in using
     splitter : object, default LeaveOneGroupOut
@@ -430,6 +370,9 @@ def cross_validate_model(
     scoring_func: function, default None
         The scoring parameter or custom scoring function to use.
     """
+
+    if not params:
+        params = get_lgb_params("light")
 
     self.compress()
 
@@ -486,13 +429,6 @@ def cross_validate_model(
             self._descale_target(df, transform_dict)
             for df in [y_train, y_test, train_predictions, test_predictions]
         ]
-
-        descaled_train_predictions = self._descale_target(
-            train_predictions, transform_dict
-        )
-        descaled_test_predictions = self._descale_target(
-            test_predictions, transform_dict
-        )
 
         test_error = np.round(estimator_dict["best_estimator"].score(X_test, y_test), 4)
 
@@ -598,6 +534,33 @@ def get_lgb_params(indicator="light"):
             "subsample": [0.9, 1],
             "subsample_freq": [1],
             "cat_smooth": [1],  # don't pass multiple elements or LGBM throws an error
+        },
+        "light": {
+            "min_child_weight": [0, 0.1, 1e-4, 5e-3, 2e-2],
+            "num_leaves": [10, 20, 30, 50],
+            "learning_rate": [0.001, 0.04, 0.05, 0.07, 0.1, 0.1],
+            "colsample_bytree": [0.3, 0.5, 0.7, 0.8, 0.9, 1],
+            "max_depth": [10, 20],
+        },
+    }
+
+    return param_dict[indicator]
+
+
+def get_prophet_params(indicator="light"):
+    """
+    Return a premade paramter dictionary for modeling.
+
+    Parameters
+    ----------
+    indicator : str, default "light"
+        Used to specify which set of parameters to use.
+    """
+
+    param_dict = {
+        "full": {
+            "changepoint_prior_scale": [0.001, 0.01, 0.1, 0.5],
+            "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
         },
         "light": {
             "min_child_weight": [0, 0.1, 1e-4, 5e-3, 2e-2],
@@ -851,6 +814,8 @@ def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False
 def _run_ensembles(self, train, test):
     """
     Run all stored modeling ensembles in self.ensemble_list on some input df.
+    For example: if you called calc_prophet_predictions in your modeling pipeline, 
+    then _run_ensembles will generate predictions for all of your test and training data. 
     """
 
     assert isinstance(train, pd.DataFrame) & isinstance(test, pd.DataFrame)
@@ -951,3 +916,317 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     )
 
     return final_train, final_test, transform_dict
+
+
+def _fit_prophet(data, *args, **kwargs):
+    """
+    Fits a Prophet model.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        The dataframe you want to use to fit your Prophet object
+    
+    Additional Parameters (passed as *args or **kwargs to Prophet)
+    ----------
+    interval_width: float, default .95
+        Float, width of the uncertainty intervals provided
+        for the forecast. If mcmc_samples=0, this will be only the uncertainty
+        in the trend using the MAP estimate of the extrapolated generative
+        model. If mcmc.samples>0, this will be integrated over all model
+        parameters, which will include uncertainty in seasonality. In this library,
+        we override FB's default from .8 to .95 to provide more stringer
+        anomaly detection.
+    growth: str, default "linear"
+        String 'linear' or 'logistic' to specify a linear or logistic trend.
+    changepoints: list, default None 
+        List of dates at which to include potential changepoints. If
+        not specified, potential changepoints are selected automatically.
+    n_changepoints: int, default 25
+        Number of potential changepoints to include. Not used
+        if input `changepoints` is supplied. If `changepoints` is not supplied,
+        then n_changepoints potential changepoints are selected uniformly from
+        the first `changepoint_range` proportion of the history.
+    changepoint_range: float, default .8 
+        Proportion of history in which trend changepoints will
+        be estimated. Defaults to 0.8 for the first 80%. Not used if
+        `changepoints` is specified.
+    yearly_seasonality: bool, str, or int, default "auto" 
+        If true, adds Fourier terms to model changes in annual seasonality. Pass 
+        an int to manually control the number of Fourier terms added, where 10 
+        is the default and 20 creates a more flexible model but increases the 
+        risk of overfitting.
+    weekly_seasonality: bool, str, or int, default "auto"
+        Fit weekly seasonality.
+        Can be 'auto', True, False, or a number of Fourier terms to generate.
+    daily_seasonality: bool, str, or int, default "auto"  
+        If true, adds Fourier terms to model changes in daily seasonality. Pass 
+        an int to manually control the number of Fourier terms added, where 10 
+        is the default and 20 creates a more flexible model but increases the 
+        risk of overfitting.
+    holidays: bool, default None
+        pd.DataFrame with columns holiday (string) and ds (date type)
+        and optionally columns lower_window and upper_window which specify a
+        range of days around the date to be included as holidays.
+        lower_window=-2 will include 2 days prior to the date as holidays. Also
+        optionally can have a column prior_scale specifying the prior scale for
+        that holiday.
+    seasonality_mode: str, default "additive"
+        'additive' (default) or 'multiplicative'. Multiplicative seasonality implies
+        that each season applies a scaling effect to the overall trend, while additive 
+        seasonality implies adding seasonality to trend to arrive at delta.
+    seasonality_prior_scale: float, default 10.0
+        Parameter modulating the strength of the
+        seasonality model. Larger values allow the model to fit larger seasonal
+        fluctuations, smaller values dampen the seasonality. Can be specified
+        for individual seasonalities using add_seasonality.
+    holidays_prior_scale: float, default 10.0
+        Parameter modulating the strength of the holiday
+        components model, unless overridden in the holidays input.
+    changepoint_prior_scale: float, default 0.05 
+        Parameter modulating the flexibility of the
+        automatic changepoint selection. Large values will allow many
+        changepoints, small values will allow few changepoints.
+    mcmc_samples: int, default 0
+        Integer, if greater than 0, will do full Bayesian inference
+        with the specified number of MCMC samples. If 0, will do MAP
+        estimation, which only measures uncertainty in the trend and 
+        observation noise but is much faster to run.
+    uncertainty_samples: int, default 1000
+        Number of simulated draws used to estimate
+        uncertainty intervals. Settings this value to 0 or False will disable
+        uncertainty estimation and speed up the calculation.
+    stan_backend: str, default None
+        str as defined in StanBackendEnum default: None - will try to
+        iterate over all available backends and find the working one
+    """
+    from fbprophet import Prophet
+
+    if "additional_regressors" in kwargs.keys():
+        additional_regressors = kwargs.pop("additional_regressors")
+    else:
+        additional_regressors = None
+
+    model = Prophet(*args, **kwargs)
+
+    if additional_regressors:
+        (model.add_regressor(regressor) for regressor in additional_regressors)
+
+    model = model.fit(data)
+
+    return model
+
+
+def _predict_prophet(model_object, df=None, *args, **kwargs):
+    """
+    A custom version of Prophet's .predict() method which doesn't discard input columns.
+    
+    Parameters
+    ----------
+    df: pd.DataFrame with dates for predictions (column ds), and capacity
+        (column cap) if logistic growth. If not provided, predictions are
+        made on the history.
+    """
+    if df is None:
+        df = model_object.history.copy()
+    else:
+        if df.shape[0] == 0:
+            raise ValueError("Dataframe has no rows.")
+        df = model_object.setup_dataframe(df.copy())
+
+    df["trend"] = model_object.predict_trend(df)
+    seasonal_components = model_object.predict_seasonal_components(df)
+    if model_object.uncertainty_samples:
+        intervals = model_object.predict_uncertainty(df)
+    else:
+        intervals = None
+
+    df2 = pd.concat((df, intervals, seasonal_components), axis=1)
+    df2["yhat"] = (
+        df2["trend"] * (1 + df2["multiplicative_terms"]) + df2["additive_terms"]
+    )
+
+    columns_to_keep = list(model_object.history.columns)
+    for col in ["y_scaled", "t"]:
+        columns_to_keep.remove(col)
+
+    if "floor" in columns_to_keep:
+        columns_to_keep.remove("floor")
+
+    for col in [
+        "trend",
+        "yhat_upper",
+        "yhat_lower",
+        "yhat",
+    ]:
+        columns_to_keep.append(col)
+
+    return df2[columns_to_keep].rename(
+        {
+            col: "prophet_" + col
+            for col in ["trend", "yhat_upper", "yhat_lower", "yhat", "floor"]
+        },
+        axis=1,
+        errors="ignore",
+    )
+
+
+def _calc_best_prophet_params(X, y, param_grid, transform_dict):
+    """
+    Cross-validate prophet model and return the best parameters
+    """
+    from fbprophet.diagnostics import cross_validation, performance_metrics
+
+    rmses = []
+
+    # Use cross validation to evaluate all parameters
+    for param in param_grid:
+        estimator = _fit_prophet(X, **params)
+        predictions = _predict_prophet(estimator)["yhat"]
+
+        descaled_actuals, descaled_predictions = [
+            self._descale_target(df, transform_dict) for df in [y, predictions]
+        ]
+
+        rmses.append(
+            _calc_RMSE(actuals=descaled_actuals, predictions=descaled_predictions)
+        )
+
+    # Find the best parameters
+    tuning_results = pd.DataFrame(param_grid)
+    tuning_results["rmse"] = rmses
+
+    best_params = tuning_results.loc[tuning_results["rmse"].idxmin()].to_dict()
+    best_estimator = _fit_prophet(X, **best_params)
+
+    results = {
+        "best_estimator": best_estimator,
+        "best_params": best_params,
+        "best_error": tuning_results.loc[
+            tuning_results["rmse"].idxmin(), "rmse"
+        ].values[0],
+        "tuning_results": tuning_results,
+    }
+
+    return results
+
+
+def _preprocess_prophet_names(self, df):
+    df.reset_index(inplace=True)
+    df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
+    return df
+
+
+def _postprocess_prophet_names(self, df):
+    df.rename({"ds": self.datetime_column, "y": self.target}, axis=1, inplace=True)
+    df.set_index(self.datetime_column, inplace=True)
+    return df
+
+
+def cross_validate_prophet(
+    self,
+    params: dict = None,
+    splitter: object = LeaveOneGroupOut,
+    folds: int = 5,
+    gap: int = 0,
+    **kwargs,
+):
+    """
+    Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search, 
+    and creates out-of-sample predictions for analysis.
+
+    Parameters
+    ----------
+    params : dict, default None
+        A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
+    splitter : object, default LeaveOneGroupOut
+        The strategy that sklearn uses to split your cross-validation set. Defaults to 
+        LeaveOneGroupOut.
+    folds : int, default 5
+        Number of folds to use during cross-valdation
+    gap : int, default 0
+        Number of periods to skip in between test and training folds.
+    """
+
+    import itertools
+
+    if not params:
+        params = get_prophet_params("light")
+
+    parameter_combinations = [
+        dict(zip(params.keys(), v)) for v in itertools.product(*params.values())
+    ]
+
+    self.compress()
+
+    self.data = self.data.sort_index()
+
+    time_grouper = self.data.index
+
+    time_splitter = TimeSeriesSplit(n_splits=folds, gap=gap)
+
+    time_splits = list(time_splitter.split(time_grouper))
+
+    results = dict()
+
+    for fold, [train_index, test_index] in enumerate(time_splits):
+
+        train, test, transform_dict = self._split_scale_and_feature_engineering(
+            train_index, test_index
+        )
+
+        train, test = [self._preprocess_prophet_names(df) for df in [train, test]]
+
+        X_train, y_train = _split_frame(train, "y")
+        X_test, y_test = _split_frame(test, "y")
+
+        estimator_dict = _calc_best_prophet_params(
+            X=X_train,
+            y=y_train,
+            param_grid=parameter_combinations,
+            transform_dict=transform_dict,
+        )
+
+        train_predictions = _predict_prophet(
+            model_object=estimator_dict["best_estimator"], df=X_train
+        )[["yhat"]]
+        test_predictions = _predict_prophet(
+            model_object=estimator_dict["best_estimator"], df=X_test
+        )[["yhat"]]
+
+        (
+            train_actuals,
+            test_actuals,
+            descaled_train_predictions,
+            descaled_test_predictions,
+        ) = [
+            self._descale_target(df, transform_dict)
+            for df in [y_train, y_test, train_predictions, test_predictions]
+        ]
+
+        test_error = np.round(
+            _calc_rmse(actuals=y_test, predictions=descaled_test_predictions)
+        )
+
+        # TODO post-process
+
+        results.update(
+            {
+                fold: {
+                    "best_estimator": estimator_dict["best_estimator"],
+                    "OOS_predictions": descaled_test_predictions,
+                    "OOS_actuals": test_actuals,
+                    "OOS_input": X_test,
+                    "IS_predictions": descaled_train_predictions,
+                    "IS_actuals": train_actuals,
+                    "IS_input": X_train,
+                    "best_IS_error": estimator_dict["best_error"],
+                    "best_OOS_error": test_error,
+                    "best_params": estimator_dict["best_params"],
+                    "tuning_results": estimator_dict["tuning_results"],  # TODO delete
+                }
+            }
+        )
+
+    self.results = results
+

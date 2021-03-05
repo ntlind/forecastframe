@@ -114,7 +114,7 @@ def main():
 
     # Modeling
     params = ff.get_lgb_params("light")
-    fframe.cross_validate_model(
+    fframe.cross_validate_lgbm(
         params=params, estimator_func=ff.model._get_tweedie_lgbm, scoring_func=None,
     )
 

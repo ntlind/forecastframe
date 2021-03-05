@@ -760,63 +760,10 @@ def calc_percent_relative_to_threshold(
         setattr(self, attribute, final_output)
 
 
-def _predict_prophet(model_object, df=None, *args, **kwargs):
+def calc_prophet_predictions(self, train_df=None, test_df=None, *args, **kwargs):
     """
-    A custom version of Prophet's .predict() method which doesn't discard input columns.
-    
-    Parameters
-    ----------
-    df: pd.DataFrame with dates for predictions (column ds), and capacity
-        (column cap) if logistic growth. If not provided, predictions are
-        made on the history.
-    """
-    if df is None:
-        df = model_object.history.copy()
-    else:
-        if df.shape[0] == 0:
-            raise ValueError("Dataframe has no rows.")
-        df = model_object.setup_dataframe(df.copy())
-
-    df["trend"] = model_object.predict_trend(df)
-    seasonal_components = model_object.predict_seasonal_components(df)
-    if model_object.uncertainty_samples:
-        intervals = model_object.predict_uncertainty(df)
-    else:
-        intervals = None
-
-    df2 = pd.concat((df, intervals, seasonal_components), axis=1)
-    df2["yhat"] = (
-        df2["trend"] * (1 + df2["multiplicative_terms"]) + df2["additive_terms"]
-    )
-
-    columns_to_keep = list(model_object.history.columns)
-    for col in ["y_scaled", "t"]:
-        columns_to_keep.remove(col)
-
-    if "floor" in columns_to_keep:
-        columns_to_keep.remove("floor")
-
-    for col in [
-        "trend",
-        "yhat_upper",
-        "yhat_lower",
-        "yhat",
-    ]:
-        columns_to_keep.append(col)
-
-    return df2[columns_to_keep].rename(
-        {
-            col: "prophet_" + col
-            for col in ["trend", "yhat_upper", "yhat_lower", "yhat", "floor"]
-        },
-        axis=1,
-        errors="ignore",
-    )
-
-
-def calc_prophet_forecasts(self, train_df=None, test_df=None, *args, **kwargs):
-    """
-    Add Prophet forecasts to your dataframe(s).
+    Add Prophet forecasts to your dataframe(s). This function is intended to be used in the feature
+    engineering stage.
 
     Parameters
     ----------
@@ -826,19 +773,10 @@ def calc_prophet_forecasts(self, train_df=None, test_df=None, *args, **kwargs):
     test_df : pd.DataFrame, default None
         If a pd.DataFrame is passed, will return predictions on the second dataframe as well
     """
-
-    def _preprocess(df):
-        df.reset_index(inplace=True)
-        df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
-        return df
-
-    def _postprocess(df):
-        df.rename({"ds": self.datetime_column, "y": self.target}, axis=1, inplace=True)
-        df.set_index(self.datetime_column, inplace=True)
-        return df
+    from forecastframe.models import _fit_prophet, _predict_prophet, _preprocess_prophet_names, _postprocess_prophet_names
 
     if not isinstance(train_df, pd.DataFrame):
-        self.ensemble_list.append((calc_prophet_forecasts, args, kwargs))
+        self.ensemble_list.append((calc_prophet_predictions, args, kwargs))
 
         train_df = getattr(self, "sample")
 
@@ -847,115 +785,16 @@ def calc_prophet_forecasts(self, train_df=None, test_df=None, *args, **kwargs):
             "DataFrame's target column contains nulls values. Please fix before building Prophet forecasts."
         )
 
-    train_df = _preprocess(train_df)
+    train_df = _preprocess_prophet_names(train_df)
     model = _fit_prophet(data=train_df, *args, **kwargs)
 
     train_df = _predict_prophet(model_object=model)
-    train_df = _postprocess(train_df)
+    train_df = _postprocess_prophet_names(train_df)
 
     if isinstance(test_df, pd.DataFrame):
-        test_df = _preprocess(test_df)
+        test_df = _preprocess_prophet_names(test_df)
         test_df = _predict_prophet(model_object=model, df2=test_df)
-        test_df = _postprocess(test_df)
+        test_df = _postprocess_prophet_names(test_df)
         return train_df, test_df
     else:
         setattr(self, "sample", train_df)
-
-
-def _fit_prophet(data, *args, **kwargs):
-    """
-    Fits a Prophet model.
-
-    Parameters
-    ----------
-    data : pd.DataFrame
-        The dataframe you want to use to fit your Prophet object
-    
-    Additional Parameters (passed as *args or **kwargs to Prophet)
-    ----------
-    interval_width: float, default .95
-        Float, width of the uncertainty intervals provided
-        for the forecast. If mcmc_samples=0, this will be only the uncertainty
-        in the trend using the MAP estimate of the extrapolated generative
-        model. If mcmc.samples>0, this will be integrated over all model
-        parameters, which will include uncertainty in seasonality. In this library,
-        we override FB's default from .8 to .95 to provide more stringer
-        anomaly detection.
-    growth: str, default "linear"
-        String 'linear' or 'logistic' to specify a linear or logistic trend.
-    changepoints: list, default None 
-        List of dates at which to include potential changepoints. If
-        not specified, potential changepoints are selected automatically.
-    n_changepoints: int, default 25
-        Number of potential changepoints to include. Not used
-        if input `changepoints` is supplied. If `changepoints` is not supplied,
-        then n_changepoints potential changepoints are selected uniformly from
-        the first `changepoint_range` proportion of the history.
-    changepoint_range: float, default .8 
-        Proportion of history in which trend changepoints will
-        be estimated. Defaults to 0.8 for the first 80%. Not used if
-        `changepoints` is specified.
-    yearly_seasonality: bool, str, or int, default "auto" 
-        If true, adds Fourier terms to model changes in annual seasonality. Pass 
-        an int to manually control the number of Fourier terms added, where 10 
-        is the default and 20 creates a more flexible model but increases the 
-        risk of overfitting.
-    weekly_seasonality: bool, str, or int, default "auto"
-        Fit weekly seasonality.
-        Can be 'auto', True, False, or a number of Fourier terms to generate.
-    daily_seasonality: bool, str, or int, default "auto"  
-        If true, adds Fourier terms to model changes in daily seasonality. Pass 
-        an int to manually control the number of Fourier terms added, where 10 
-        is the default and 20 creates a more flexible model but increases the 
-        risk of overfitting.
-    holidays: bool, default None
-        pd.DataFrame with columns holiday (string) and ds (date type)
-        and optionally columns lower_window and upper_window which specify a
-        range of days around the date to be included as holidays.
-        lower_window=-2 will include 2 days prior to the date as holidays. Also
-        optionally can have a column prior_scale specifying the prior scale for
-        that holiday.
-    seasonality_mode: str, default "additive"
-        'additive' (default) or 'multiplicative'. Multiplicative seasonality implies
-        that each season applies a scaling effect to the overall trend, while additive 
-        seasonality implies adding seasonality to trend to arrive at delta.
-    seasonality_prior_scale: float, default 10.0
-        Parameter modulating the strength of the
-        seasonality model. Larger values allow the model to fit larger seasonal
-        fluctuations, smaller values dampen the seasonality. Can be specified
-        for individual seasonalities using add_seasonality.
-    holidays_prior_scale: float, default 10.0
-        Parameter modulating the strength of the holiday
-        components model, unless overridden in the holidays input.
-    changepoint_prior_scale: float, default 0.05 
-        Parameter modulating the flexibility of the
-        automatic changepoint selection. Large values will allow many
-        changepoints, small values will allow few changepoints.
-    mcmc_samples: int, default 0
-        Integer, if greater than 0, will do full Bayesian inference
-        with the specified number of MCMC samples. If 0, will do MAP
-        estimation, which only measures uncertainty in the trend and 
-        observation noise but is much faster to run.
-    uncertainty_samples: int, default 1000
-        Number of simulated draws used to estimate
-        uncertainty intervals. Settings this value to 0 or False will disable
-        uncertainty estimation and speed up the calculation.
-    stan_backend: str, default None
-        str as defined in StanBackendEnum default: None - will try to
-        iterate over all available backends and find the working one
-    """
-    from fbprophet import Prophet
-
-    if "additional_regressors" in kwargs.keys():
-        additional_regressors = kwargs.pop("additional_regressors")
-    else:
-        additional_regressors = None
-
-    model = Prophet(*args, **kwargs)
-
-    if additional_regressors:
-        (model.add_regressor(regressor) for regressor in additional_regressors)
-
-    model = model.fit(data)
-
-    return model

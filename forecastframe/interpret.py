@@ -423,7 +423,7 @@ def summarize_fit(self, error_type="APE", return_string=False):
 
     def _get_fit_summary(difference, error_type):
 
-        score = _score_oos_is_difference(value=oos_error, error_type=error_type)
+        score = _score_oos_is_difference(value=difference, error_type=error_type)
 
         explainations = {
             "best": "tuned correctly",

@@ -9,7 +9,7 @@ def test__run_scaler_pipeline():
     initial_data = fframe.data.copy(deep=True)
     initial_sample = fframe.sample.copy(deep=True)
 
-    # add some feature engineering flavor to replicate cross_validate_model
+    # add some feature engineering flavor to replicate cross_validate_lgbm
     fframe.lag_features(features="sales_int", lags=7)
     fframe.calc_percent_change(feature="sales_int")
 
@@ -51,7 +51,7 @@ def test__run_ensembles():
     initial_sample = fframe.sample.copy(deep=True)
 
     # should only update the sample
-    fframe.calc_prophet_forecasts(
+    fframe.calc_prophet_predictions(
         additional_regressors=["state", "store"], interval_width=0.99
     )
     assert fframe.data.equals(train_df)
@@ -172,7 +172,25 @@ def test__split_scale_and_feature_engineering():
         assert diff <= testing._get_difference_threshold()
 
 
+def test_predict():
+    predict_df = testing.get_test_example().drop(["sales_int", "sales_float"], axis=1)
+
+    fframe = testing.get_test_fframe()
+
+    fframe.normalize_features(features=["sales_float"])
+    fframe.calc_days_since_release()
+    fframe.calc_datetime_features()
+    fframe.calc_percent_change()
+
+    fframe.cross_validate_lgbm()
+
+    results = fframe.predict(predict_df)
+
+    assert set(["predictions", "scaled_predictions"]).issubset(set(results.columns))
+
+
 if __name__ == "__main__":
+    test_predict()
     test__run_ensembles()
     test__split_scale_and_feature_engineering()
     test__run_scaler_pipeline()

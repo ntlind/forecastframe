@@ -14,7 +14,7 @@ Performance
 
 Transform
 -----------
-- Split out two separate self.transforms to avoid mixing the sample and the data transforms. Self.transforms may not even be necessary anymore since cross_validate_models stores the dicts locally
+- Split out two separate self.transforms to avoid mixing the sample and the data transforms. Self.transforms may not even be necessary anymore since cross_validate_lgbms stores the dicts locally
 - Add a new "method" arg to encode_categoricals to allow the user to specifiy different strategies (e.g., get_dummies)
 
 
@@ -53,7 +53,6 @@ Docs / README
 Modeling
 -----------
 - Add easy prediction capability with ensembling and add to docs
-- Test fit_insample_model
 - Add recursiving training functionality (low priority since this concept can cause cascading errors)
 - Build multi-quantile model using _get_quantile_weights
     - https://github.com/Mcompetitions/M5-methods/blob/master/Code%20of%20Winning%20Methods/A1/3.%20code/2.%20train/1-1.%20recursive_store_TRAIN.ipynb

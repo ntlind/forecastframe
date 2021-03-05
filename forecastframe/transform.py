@@ -243,7 +243,7 @@ def _calc_denormalize(array, maxes, mins):
     return (array * (maxes - mins)) + mins
 
 
-def _descale_target(self, array, transform_dict=None):
+def _descale_target(self, array, transform_dict=None, target=None):
     """Undo scaling operations on a single array (e.g., a prediction array)"""
 
     def _handle_pandas_index(pandas_object, column_name):
@@ -264,21 +264,27 @@ def _descale_target(self, array, transform_dict=None):
     def _delog_features(array, *args):
         return np.expm1(array)
 
-    def _destandardize_features(array, transform_dict):
+    def _destandardize_features(array, transform_dict, target):
         """Destandardize an array using the information contained in self.transforms"""
         mean, stdev = (
-            _handle_pandas_index(transform_dict["standardize"]["mean"], self.target),
-            _handle_pandas_index(transform_dict["standardize"]["stdev"], self.target),
+            _handle_pandas_index(transform_dict["standardize"]["mean"], target),
+            _handle_pandas_index(transform_dict["standardize"]["stdev"], target),
         )
         return _calc_destandardize(array=array, stdev=stdev, mean=mean)
 
-    def _denormalize_features(array, transform_dict):
+    def _denormalize_features(array, transform_dict, target):
         """Denormalize an array using the information contained in self.transforms"""
         maxes, mins = (
-            _handle_pandas_index(transform_dict["normalize"]["maxes"], self.target),
-            _handle_pandas_index(transform_dict["normalize"]["mins"], self.target),
+            _handle_pandas_index(transform_dict["normalize"]["maxes"], target),
+            _handle_pandas_index(transform_dict["normalize"]["mins"], target),
         )
         return _calc_denormalize(array=array, maxes=maxes, mins=mins)
+
+    if not target:
+        target = self.target
+
+    # allow processing of multiple targets, like if we have confidence intervals
+    target = utilities._ensure_is_list(target)
 
     if not transform_dict:
         transform_dict = self.transforms
@@ -293,7 +299,7 @@ def _descale_target(self, array, transform_dict=None):
     }
 
     for key, values in transform_dict.items():
-        if self.target in values["features"]:
+        if target in values["features"]:
             return operation_dict[key](array, transform_dict)
         else:
             pass
