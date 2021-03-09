@@ -193,12 +193,16 @@ def process_outputs(self, groupers=None):
             assert designator in ["predictions", "actuals"]
 
             # start with hierarchy columns
-            output_df = self.results[fold][f"{sample}_input"][self.hierarchy]
+            output_df = self.results[fold][f"{sample}_input"][
+                self.hierarchy
+            ].reset_index(drop=True)
 
             # TODO error was being thrown for reindexing from duplicate axis, but the bigger problem is that IS_actuals has a different order than the
             # input data. It's probably too dangerous to copy over the values
 
-            output_df["Values"] = self.results[fold][f"{sample}_{designator}"]
+            output_df["Values"] = self.results[fold][
+                f"{sample}_{designator}"
+            ].reset_index(drop=True)
             output_df["Date"] = self.results[fold][f"{sample}_{designator}"].index
             output_df["Label"] = np.resize([f"{designator}"], len(output_df))
 
@@ -559,15 +563,17 @@ def get_prophet_params(indicator="light"):
 
     param_dict = {
         "full": {
-            "changepoint_prior_scale": [0.001, 0.01, 0.1, 0.5],
-            "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
+            {
+                "seasonality_mode": ("multiplicative", "additive"),
+                "changepoint_prior_scale": [0.001, 0.1, 0.2, 0.3, 0.4, 0.5],
+                "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
+                "holidays_prior_scale": [0.1, 0.2, 0.3, 0.4, 0.5],
+                "n_changepoints": [100, 150, 200],
+            }
         },
         "light": {
-            "min_child_weight": [0, 0.1, 1e-4, 5e-3, 2e-2],
-            "num_leaves": [10, 20, 30, 50],
-            "learning_rate": [0.001, 0.04, 0.05, 0.07, 0.1, 0.1],
-            "colsample_bytree": [0.3, 0.5, 0.7, 0.8, 0.9, 1],
-            "max_depth": [10, 20],
+            "changepoint_prior_scale": [0.001, 0.01, 0.1, 0.5],
+            "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
         },
     }
 
@@ -639,7 +645,7 @@ def _calc_RMSE(actuals: np.array, predictions: np.array, weights=None):
             sample_weight=weights,
             multioutput="raw_values",
         )
-    )
+    )[0]
 
 
 def calc_error_metrics(
@@ -1017,7 +1023,7 @@ def _fit_prophet(data, *args, **kwargs):
     return model
 
 
-def _predict_prophet(model_object, df=None, *args, **kwargs):
+def _predict_prophet(self, model_object, df=None, *args, **kwargs):
     """
     A custom version of Prophet's .predict() method which doesn't discard input columns.
     
@@ -1061,7 +1067,7 @@ def _predict_prophet(model_object, df=None, *args, **kwargs):
     ]:
         columns_to_keep.append(col)
 
-    return df2[columns_to_keep].rename(
+    final_output = df2[columns_to_keep].rename(
         {
             col: "prophet_" + col
             for col in ["trend", "yhat_upper", "yhat_lower", "yhat", "floor"]
@@ -1070,8 +1076,10 @@ def _predict_prophet(model_object, df=None, *args, **kwargs):
         errors="ignore",
     )
 
+    return _postprocess_prophet_names(self=self, df=final_output)
 
-def _calc_best_prophet_params(X, y, param_grid, transform_dict):
+
+def _calc_best_prophet_params(self, training_data, param_grid, transform_dict):
     """
     Cross-validate prophet model and return the best parameters
     """
@@ -1081,11 +1089,12 @@ def _calc_best_prophet_params(X, y, param_grid, transform_dict):
 
     # Use cross validation to evaluate all parameters
     for param in param_grid:
-        estimator = _fit_prophet(X, **params)
-        predictions = _predict_prophet(estimator)["yhat"]
+        estimator = _fit_prophet(training_data, **param)
+        predictions = _predict_prophet(self, estimator)["prophet_yhat"]
 
         descaled_actuals, descaled_predictions = [
-            self._descale_target(df, transform_dict) for df in [y, predictions]
+            self._descale_target(df, transform_dict)
+            for df in [training_data["y"], predictions]
         ]
 
         rmses.append(
@@ -1097,14 +1106,13 @@ def _calc_best_prophet_params(X, y, param_grid, transform_dict):
     tuning_results["rmse"] = rmses
 
     best_params = tuning_results.loc[tuning_results["rmse"].idxmin()].to_dict()
-    best_estimator = _fit_prophet(X, **best_params)
+    best_error = best_params.pop("rmse")
+    best_estimator = _fit_prophet(training_data, **best_params)
 
     results = {
         "best_estimator": best_estimator,
         "best_params": best_params,
-        "best_error": tuning_results.loc[
-            tuning_results["rmse"].idxmin(), "rmse"
-        ].values[0],
+        "best_error": best_error,
         "tuning_results": tuning_results,
     }
 
@@ -1129,6 +1137,7 @@ def cross_validate_prophet(
     splitter: object = LeaveOneGroupOut,
     folds: int = 5,
     gap: int = 0,
+    additional_regressors="all",
     **kwargs,
 ):
     """
@@ -1146,6 +1155,9 @@ def cross_validate_prophet(
         Number of folds to use during cross-valdation
     gap : int, default 0
         Number of periods to skip in between test and training folds.
+    additional_regressors : str or List[str], default None
+        If "all", will treat all other variable passed into the dataframe as additional regressors. If a list of strings,
+        will include any passed column names as addiitional regressors.
     """
 
     import itertools
@@ -1175,24 +1187,28 @@ def cross_validate_prophet(
             train_index, test_index
         )
 
-        train, test = [self._preprocess_prophet_names(df) for df in [train, test]]
+        train, test = [
+            _preprocess_prophet_names(self=self, df=df) for df in [train, test]
+        ]
 
-        X_train, y_train = _split_frame(train, "y")
-        X_test, y_test = _split_frame(test, "y")
+        if additional_regressors == "all":
+            regressors = list(train.columns.drop(["ds", "y"]))
+        elif isinstance(additional_regressors, list):
+            params["additional_regressors"] = additional_regressors
 
         estimator_dict = _calc_best_prophet_params(
-            X=X_train,
-            y=y_train,
+            self=self,
+            training_data=train,
             param_grid=parameter_combinations,
             transform_dict=transform_dict,
         )
 
         train_predictions = _predict_prophet(
-            model_object=estimator_dict["best_estimator"], df=X_train
-        )[["yhat"]]
+            self, model_object=estimator_dict["best_estimator"], df=train
+        )["prophet_yhat"]
         test_predictions = _predict_prophet(
-            model_object=estimator_dict["best_estimator"], df=X_test
-        )[["yhat"]]
+            self, model_object=estimator_dict["best_estimator"], df=test
+        )["prophet_yhat"]
 
         (
             train_actuals,
@@ -1201,14 +1217,12 @@ def cross_validate_prophet(
             descaled_test_predictions,
         ) = [
             self._descale_target(df, transform_dict)
-            for df in [y_train, y_test, train_predictions, test_predictions]
+            for df in [train["y"], test["y"], train_predictions, test_predictions,]
         ]
 
         test_error = np.round(
-            _calc_rmse(actuals=y_test, predictions=descaled_test_predictions)
+            _calc_RMSE(actuals=test["y"], predictions=descaled_test_predictions)
         )
-
-        # TODO post-process
 
         results.update(
             {
@@ -1216,10 +1230,10 @@ def cross_validate_prophet(
                     "best_estimator": estimator_dict["best_estimator"],
                     "OOS_predictions": descaled_test_predictions,
                     "OOS_actuals": test_actuals,
-                    "OOS_input": X_test,
+                    "OOS_input": test,
                     "IS_predictions": descaled_train_predictions,
                     "IS_actuals": train_actuals,
-                    "IS_input": X_train,
+                    "IS_input": train,
                     "best_IS_error": estimator_dict["best_error"],
                     "best_OOS_error": test_error,
                     "best_params": estimator_dict["best_params"],

@@ -92,6 +92,7 @@ class ForecastFrame:
 
     from forecastframe.model import (
         cross_validate_lgbm,
+        cross_validate_prophet,
         process_outputs,
         calc_all_error_metrics,
         filter_outputs,
@@ -101,7 +102,6 @@ class ForecastFrame:
         _split_scale_and_feature_engineering,
         _run_feature_engineering,
         _run_ensembles,
-        calc_prophet_predictions,
     )
 
     from forecastframe.io import save_fframe

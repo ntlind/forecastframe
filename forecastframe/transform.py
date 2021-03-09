@@ -299,7 +299,7 @@ def _descale_target(self, array, transform_dict=None, target=None):
     }
 
     for key, values in transform_dict.items():
-        if target in values["features"]:
+        if target in utilities._ensure_is_list(values["features"]):
             return operation_dict[key](array, transform_dict)
         else:
             pass

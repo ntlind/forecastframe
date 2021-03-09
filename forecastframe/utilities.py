@@ -326,6 +326,33 @@ def check_RAM():
     print("{:.1f} GB used".format(psutil.virtual_memory().available / 1e9 - 0.7))
 
 
+@pytest.mark.skip(reason="simple pandas memory check")
+def print_df_size(df):
+    """Print the size of a pandas dataframe"""
+
+    def sizeof_fmt(num, suffix="B"):
+        for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
+            if abs(num) < 1024.0:
+                return "%3.1f%s%s" % (num, unit, suffix)
+            num /= 1024.0
+        return "%.1f%s%s" % (num, "Yi", suffix)
+
+    print(
+        "{:>20}: {:>8}".format(
+            "Dataframe Size: ", sizeof_fmt(df.memory_usage(index=True).sum())
+        )
+    )
+
+
+def merge_by_concat(df1, df2, merge_on):
+    """Merge by concatenation on two pandas dataframes to reduce required memory when dealing with massive dfs"""
+    merged_df = df1[merge_on]
+    merged_df = merged_df.merge(df2, on=merge_on, how="left")
+    new_columns = [col for col in list(merged_df) if col not in merge_on]
+    df1 = pd.concat([df1, merged_df[new_columns]], axis=1)
+    return df1
+
+
 @pytest.mark.skip(reason="simple python functionality")
 def check_memory():
     """Prints the top 10 biggest objects in the global namespace"""
