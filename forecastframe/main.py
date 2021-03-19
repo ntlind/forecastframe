@@ -29,9 +29,9 @@ class ForecastFrame:
     def __init__(
         self,
         data: pd.DataFrame,
-        hierarchy: list,
         datetime_column: str,
         target: str,
+        hierarchy: list = None,
         sample_size: int = 1000,
     ):
         self.hierarchy = hierarchy
@@ -48,18 +48,20 @@ class ForecastFrame:
         self.ensemble_list = []
         self.scalers_list = []
         self.alerts = {}
+        self.predictions = None
 
     def _set_data(self, df):
         """Check user-specified hierarchy to be sure it's the primary key"""
 
-        initial_length = len(df)
+        if self.hierarchy:
+            initial_length = len(df)
 
-        columns = self.hierarchy + [self.datetime_column]
-        dropped_length = len(df.drop_duplicates(subset=columns))
+            columns = self.hierarchy + [self.datetime_column]
+            dropped_length = len(df.drop_duplicates(subset=columns))
 
-        assert (
-            initial_length == dropped_length
-        ), "Your dataframe isn't unique across the specified hierarchy. Please ensure you don't have any hierarchy or date duplicates."
+            assert (
+                initial_length == dropped_length
+            ), "Your dataframe isn't unique across the specified hierarchy. Please ensure you don't have any hierarchy or date duplicates."
 
         df[self.datetime_column] = pd.to_datetime(df[self.datetime_column])
 
@@ -91,6 +93,7 @@ class ForecastFrame:
     )
 
     from forecastframe.model import (
+        predict,
         cross_validate_lgbm,
         cross_validate_prophet,
         process_outputs,

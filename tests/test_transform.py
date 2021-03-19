@@ -210,7 +210,11 @@ def test_descale_features():
     fframe.descale_features()
 
     result = fframe.get_sample()[["sales_int", "sales_float"]].values
-    answer = testing.get_test_fframe(correct_negatives=True).get_sample()[["sales_int", "sales_float"]].values
+    answer = (
+        testing.get_test_fframe(correct_negatives=True)
+        .get_sample()[["sales_int", "sales_float"]]
+        .values
+    )
     diff = abs(np.nansum(result - answer))
     assert diff <= testing._get_difference_threshold()
 

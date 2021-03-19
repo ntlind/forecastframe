@@ -246,7 +246,7 @@ def _calc_denormalize(array, maxes, mins):
 def _descale_target(self, array, transform_dict=None, target=None):
     """Undo scaling operations on a single array (e.g., a prediction array)"""
 
-    def _handle_pandas_index(pandas_object, column_name):
+    def _handle_pandas_index(pandas_object):
         """
         Handle instances where we aren't sure if an object is a Series or DataFrame
         """
@@ -255,7 +255,7 @@ def _descale_target(self, array, transform_dict=None, target=None):
         if isinstance(pandas_object, pd.Series):
             return pandas_object[0]
         elif isinstance(pandas_object, pd.DataFrame):
-            return pandas_object[column_name]
+            return pandas_object
         elif is_numeric_dtype(pandas_object):
             return pandas_object
         else:
@@ -264,19 +264,19 @@ def _descale_target(self, array, transform_dict=None, target=None):
     def _delog_features(array, *args):
         return np.expm1(array)
 
-    def _destandardize_features(array, transform_dict, target):
+    def _destandardize_features(array, transform_dict):
         """Destandardize an array using the information contained in self.transforms"""
         mean, stdev = (
-            _handle_pandas_index(transform_dict["standardize"]["mean"], target),
-            _handle_pandas_index(transform_dict["standardize"]["stdev"], target),
+            _handle_pandas_index(transform_dict["standardize"]["mean"]),
+            _handle_pandas_index(transform_dict["standardize"]["stdev"]),
         )
         return _calc_destandardize(array=array, stdev=stdev, mean=mean)
 
-    def _denormalize_features(array, transform_dict, target):
+    def _denormalize_features(array, transform_dict):
         """Denormalize an array using the information contained in self.transforms"""
         maxes, mins = (
-            _handle_pandas_index(transform_dict["normalize"]["maxes"], target),
-            _handle_pandas_index(transform_dict["normalize"]["mins"], target),
+            _handle_pandas_index(transform_dict["normalize"]["maxes"]),
+            _handle_pandas_index(transform_dict["normalize"]["mins"]),
         )
         return _calc_denormalize(array=array, maxes=maxes, mins=mins)
 
@@ -287,10 +287,10 @@ def _descale_target(self, array, transform_dict=None, target=None):
     target = utilities._ensure_is_list(target)
 
     if not transform_dict:
-        transform_dict = self.transforms
-
-    if not transform_dict:
-        return array
+        if self.transforms:
+            transform_dict = self.transforms
+        else:
+            return array
 
     operation_dict = {
         "log1p": _delog_features,
@@ -299,10 +299,11 @@ def _descale_target(self, array, transform_dict=None, target=None):
     }
 
     for key, values in transform_dict.items():
-        if target in utilities._ensure_is_list(values["features"]):
-            return operation_dict[key](array, transform_dict)
-        else:
-            pass
+        features_to_untransform = values["features"]
+
+        array[features_to_untransform] = operation_dict[key](
+            array[features_to_untransform], transform_dict
+        )
 
     return array
 

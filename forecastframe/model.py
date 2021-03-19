@@ -563,13 +563,11 @@ def get_prophet_params(indicator="light"):
 
     param_dict = {
         "full": {
-            {
-                "seasonality_mode": ("multiplicative", "additive"),
-                "changepoint_prior_scale": [0.001, 0.1, 0.2, 0.3, 0.4, 0.5],
-                "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
-                "holidays_prior_scale": [0.1, 0.2, 0.3, 0.4, 0.5],
-                "n_changepoints": [100, 150, 200],
-            }
+            "seasonality_mode": ("multiplicative", "additive"),
+            "changepoint_prior_scale": [0.001, 0.1, 0.2, 0.3, 0.4, 0.5],
+            "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
+            "holidays_prior_scale": [0.1, 0.2, 0.3, 0.4, 0.5],
+            "n_changepoints": [100, 150, 200],
         },
         "light": {
             "changepoint_prior_scale": [0.001, 0.01, 0.1, 0.5],
@@ -1023,7 +1021,9 @@ def _fit_prophet(data, *args, **kwargs):
     return model
 
 
-def _predict_prophet(self, model_object, df=None, *args, **kwargs):
+def _predict_prophet(
+    model_object, df=None, future_periods=None, rename_outputs=False, *args, **kwargs
+):
     """
     A custom version of Prophet's .predict() method which doesn't discard input columns.
     
@@ -1032,13 +1032,24 @@ def _predict_prophet(self, model_object, df=None, *args, **kwargs):
     df: pd.DataFrame with dates for predictions (column ds), and capacity
         (column cap) if logistic growth. If not provided, predictions are
         made on the history.
+
+    Notes
+    ----------
+    Original function found here: 
+    https://github.com/facebook/prophet/blob/master/python/fbprophet/forecaster.py
     """
-    if df is None:
-        df = model_object.history.copy()
+    if not df:
+        if not future_periods:
+            df = model_object.history.copy()
+        else:
+            df = model_object.make_future_dataframe(periods=future_periods)
+            df = model_object.setup_dataframe(df)
     else:
         if df.shape[0] == 0:
             raise ValueError("Dataframe has no rows.")
         df = model_object.setup_dataframe(df.copy())
+
+    columns_to_keep = list(df.columns)
 
     df["trend"] = model_object.predict_trend(df)
     seasonal_components = model_object.predict_seasonal_components(df)
@@ -1052,9 +1063,9 @@ def _predict_prophet(self, model_object, df=None, *args, **kwargs):
         df2["trend"] * (1 + df2["multiplicative_terms"]) + df2["additive_terms"]
     )
 
-    columns_to_keep = list(model_object.history.columns)
-    for col in ["y_scaled", "t"]:
-        columns_to_keep.remove(col)
+    for col in ["y_scaled", "t", "trend"]:
+        if col in columns_to_keep:
+            columns_to_keep.remove(col)
 
     if "floor" in columns_to_keep:
         columns_to_keep.remove("floor")
@@ -1067,16 +1078,21 @@ def _predict_prophet(self, model_object, df=None, *args, **kwargs):
     ]:
         columns_to_keep.append(col)
 
-    final_output = df2[columns_to_keep].rename(
-        {
-            col: "prophet_" + col
-            for col in ["trend", "yhat_upper", "yhat_lower", "yhat", "floor"]
-        },
-        axis=1,
-        errors="ignore",
-    )
+    final_output = df2[columns_to_keep]
 
-    return _postprocess_prophet_names(self=self, df=final_output)
+    if rename_outputs:
+
+        final_output.rename(
+            {
+                col: "prophet_" + col
+                for col in ["trend", "yhat_upper", "yhat_lower", "yhat", "floor"]
+            },
+            axis=1,
+            errors="ignore",
+            inplace=True,
+        )
+
+    return final_output
 
 
 def _calc_best_prophet_params(self, training_data, param_grid, transform_dict):
@@ -1120,9 +1136,9 @@ def _calc_best_prophet_params(self, training_data, param_grid, transform_dict):
 
 
 def _preprocess_prophet_names(self, df):
-    df.reset_index(inplace=True)
-    df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
-    return df
+    new_df = df.reset_index()
+    new_df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
+    return new_df
 
 
 def _postprocess_prophet_names(self, df):
@@ -1210,14 +1226,16 @@ def cross_validate_prophet(
             self, model_object=estimator_dict["best_estimator"], df=test
         )["prophet_yhat"]
 
-        (
-            train_actuals,
-            test_actuals,
-            descaled_train_predictions,
-            descaled_test_predictions,
-        ) = [
-            self._descale_target(df, transform_dict)
-            for df in [train["y"], test["y"], train_predictions, test_predictions,]
+        (train_actuals, test_actuals,) = [
+            self._descale_target(array=df, transform_dict=transform_dict, target="y")
+            for df in [train["y"], test["y"]]
+        ]
+
+        (descaled_train_predictions, descaled_test_predictions,) = [
+            self._descale_target(
+                array=df, transform_dict=transform_dict, target="prophet_yhat"
+            )
+            for df in [train_predictions, test_predictions,]
         ]
 
         test_error = np.round(
@@ -1244,3 +1262,47 @@ def cross_validate_prophet(
 
     self.results = results
 
+
+def _generate_prophet_predictions(self, future_periods, *args, **kwargs):
+    """Helpers functions to produce prophet forecasts"""
+
+    processed_df = _preprocess_prophet_names(self=self, df=self.data)
+
+    estimator = _fit_prophet(data=processed_df, *args, **kwargs)
+    predictions = _predict_prophet(
+        model_object=estimator, future_periods=future_periods
+    )
+
+    output = _postprocess_prophet_names(self=self, df=predictions)
+
+    return output
+
+
+def predict(
+    self, model="prophet", future_periods=None, return_results=False, *args, **kwargs
+):
+    """
+    Predict the future using the data stored in your fframe
+    
+    Parameters
+    ----------
+    model: str, default 'prophet'
+        The modeling algorithm to use
+    future_periods: int, default None
+        The number of periods forward to predict. If None, returns in-sample predictions using training dataframe
+    """
+
+    model_mappings = {"prophet": _generate_prophet_predictions}
+    assert (
+        model in model_mappings.keys()
+    ), f"Model must be one of {model_mappings.keys()}"
+
+    modeling_function = model_mappings[model]
+    output = modeling_function(
+        self=self, future_periods=future_periods, *args, **kwargs
+    )
+
+    self.predictions = output
+
+    if return_results:
+        return output
