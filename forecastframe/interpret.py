@@ -645,3 +645,18 @@ def plot_shap_force(self, slicer=None, show=False, *args, **kwargs):
         **kwargs,
     )
 
+
+def plot_components(self, *args, **kwargs):
+    """
+    Plot the components of a prophet estimator
+    """
+    import fbprophet as prophet
+
+    estimator = self.results["estimator"]
+    forecast = self.predictions.reset_index()
+
+    assert isinstance(
+        estimator, prophet.forecaster.Prophet
+    ), "This method only works with Prophet modeling objects."
+
+    return estimator.plot_components(fcst=forecast, *args, **kwargs)

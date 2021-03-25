@@ -100,6 +100,7 @@ class ForecastFrame:
         calc_all_error_metrics,
         filter_outputs,
         calc_error_metrics,
+        get_predictions,
         _run_scaler_pipeline,
         _run_scaler_pipeline,
         _split_scale_and_feature_engineering,
@@ -139,6 +140,7 @@ class ForecastFrame:
         plot_shap_dependence,
         plot_shap_waterfall,
         calc_sorted_shap_features,
+        plot_components,
     )
 
     def __repr__(self):

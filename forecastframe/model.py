@@ -1021,11 +1021,9 @@ def _fit_prophet(data, *args, **kwargs):
     return model
 
 
-def _predict_prophet(
-    model_object, df=None, future_periods=None, rename_outputs=False, *args, **kwargs
-):
+def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs):
     """
-    A custom version of Prophet's .predict() method which doesn't discard input columns.
+    A custom version of Prophet's .predict() method which doesn't discard columns.
     
     Parameters
     ----------
@@ -1049,8 +1047,6 @@ def _predict_prophet(
             raise ValueError("Dataframe has no rows.")
         df = model_object.setup_dataframe(df.copy())
 
-    columns_to_keep = list(df.columns)
-
     df["trend"] = model_object.predict_trend(df)
     seasonal_components = model_object.predict_seasonal_components(df)
     if model_object.uncertainty_samples:
@@ -1058,41 +1054,47 @@ def _predict_prophet(
     else:
         intervals = None
 
-    df2 = pd.concat((df, intervals, seasonal_components), axis=1)
-    df2["yhat"] = (
-        df2["trend"] * (1 + df2["multiplicative_terms"]) + df2["additive_terms"]
+    output_df = pd.concat((df, intervals, seasonal_components), axis=1)
+    output_df["yhat"] = (
+        output_df["trend"] * (1 + output_df["multiplicative_terms"])
+        + output_df["additive_terms"]
     )
 
-    for col in ["y_scaled", "t", "trend"]:
-        if col in columns_to_keep:
-            columns_to_keep.remove(col)
-
-    if "floor" in columns_to_keep:
-        columns_to_keep.remove("floor")
-
-    for col in [
-        "trend",
-        "yhat_upper",
-        "yhat_lower",
+    columns_to_keep = [
+        "ds",
         "yhat",
-    ]:
-        columns_to_keep.append(col)
+        "yhat_lower",
+        "yhat_upper",
+        "trend",
+        "trend_upper",
+        "trend_lower",
+        "weekly",
+        "weekly_upper",
+        "weekly_lower",
+        "daily",
+        "daily_upper",
+        "daily_lower",
+        "yearly",
+        "yearly_upper",
+        "yearly_lower",
+    ]
 
-    final_output = df2[columns_to_keep]
+    return output_df[output_df.columns.intersection(columns_to_keep)]
 
-    if rename_outputs:
 
-        final_output.rename(
-            {
-                col: "prophet_" + col
-                for col in ["trend", "yhat_upper", "yhat_lower", "yhat", "floor"]
-            },
-            axis=1,
-            errors="ignore",
-            inplace=True,
-        )
+def get_predictions(
+    self, columns_to_keep=["trend", "yhat_upper", "yhat_lower", "yhat"]
+):
+    """
+    Removes unnecessary columns from predictions dataframe
+    
+    Parameters
+    ----------
 
-    return final_output
+    columns_to_keep: List[str], default ["trend", "yhat_upper", "yhat_lower", "yhat"]
+        The column you'd like to keep from the output dataframe stored in self.predictions
+    """
+    return self.predictions[columns_to_keep]
 
 
 def _calc_best_prophet_params(self, training_data, param_grid, transform_dict):
@@ -1275,11 +1277,13 @@ def _generate_prophet_predictions(self, future_periods, *args, **kwargs):
 
     output = _postprocess_prophet_names(self=self, df=predictions)
 
-    return output
+    result_dict = {"estimator": estimator}
+
+    return output, result_dict
 
 
 def predict(
-    self, model="prophet", future_periods=None, return_results=False, *args, **kwargs
+    self, model="prophet", future_periods=None, return_results=True, *args, **kwargs
 ):
     """
     Predict the future using the data stored in your fframe
@@ -1298,11 +1302,13 @@ def predict(
     ), f"Model must be one of {model_mappings.keys()}"
 
     modeling_function = model_mappings[model]
-    output = modeling_function(
+    output, result_dict = modeling_function(
         self=self, future_periods=future_periods, *args, **kwargs
     )
 
     self.predictions = output
+    self.results = result_dict
 
     if return_results:
         return output
+
