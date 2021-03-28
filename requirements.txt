@@ -5,7 +5,6 @@ shap
 sklearn
 psutil
 tqdm
-streamlit
 fbprophet
 lightgbm
 altair
