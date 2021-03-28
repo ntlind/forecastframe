@@ -8,3 +8,4 @@ tqdm
 fbprophet
 lightgbm
 altair
+IPython

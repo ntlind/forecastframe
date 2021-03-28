@@ -14,8 +14,6 @@ from forecastframe.utilities import (
 
 import forecastframe.model as model
 
-from IPython.core.display import display, Markdown
-
 ## Helper functions
 def _format_percentage(percentage):
     return "{:.2%}".format(percentage)
@@ -264,14 +262,12 @@ def _plot_lineplot_over_time(data, groupers):
 
 
 ## Summaries
-def summarize_shap(self, return_string=False):
+def summarize_shap(self):
     """
     Summarize the SHAP values of our LightGBM estimator
 
     Parameters
     ----------
-    return_string : bool, default False
-        If true, returns a string rather than an IPython Markdown object
     """
 
     sorted_shap_values = self.calc_sorted_shap_features()
@@ -309,15 +305,10 @@ def summarize_shap(self, return_string=False):
 
     output = "\n\n".join([demand_summary, statistical_summary])
 
-    if return_string:
-        return output
-    else:
-        return Markdown()
+    return output
 
 
-def summarize_performance_over_time(
-    self, error_type="APE", period="month", return_string=False
-):
+def summarize_performance_over_time(self, error_type="APE", period="month"):
     """
     Summarize the findings of our k-fold cross-validation
 
@@ -326,8 +317,6 @@ def summarize_performance_over_time(
     error_type : str, default "RMSE"
         The error metric you'd like to plot by fold. Should be one of "APE", 
         "AE", "RMSE", or "SE".
-    return_string : bool, default False
-        If true, returns a string rather than an IPython Markdown object
 
     TODO period not implemented
     """
@@ -387,13 +376,10 @@ def summarize_performance_over_time(
 
     output = "\n\n".join([_get_target_trends(self), _get_seasonality_summary(self),])
 
-    if return_string:
-        return output
-    else:
-        return Markdown(output)
+    return output
 
 
-def summarize_fit(self, error_type="APE", return_string=False):
+def summarize_fit(self, error_type="APE"):
     """
     Summarize the findings of our k-fold cross-validation
 
@@ -402,9 +388,7 @@ def summarize_fit(self, error_type="APE", return_string=False):
     error_type : str, default "RMSE"
         The error metric you'd like to plot by fold. Should be one of "APE", 
         "AE", "RMSE", or "SE".
-    return_string : bool, default False
-        If true, returns a string rather than an IPython Markdown object
-
+  
     TODO need to make format_percentage conditional on APE
     """
 
@@ -499,10 +483,7 @@ def summarize_fit(self, error_type="APE", return_string=False):
         "performance"
     ] = f"Forecasting performance was {_get_oos_performance(oos_error)}, with an out-of-sample error of {_format_percentage(oos_error)} and an in-sample error of {_format_percentage(is_error)}"
 
-    if return_string:
-        return summary
-
-    return Markdown(summary)
+    return summary
 
 
 ## SHAP
