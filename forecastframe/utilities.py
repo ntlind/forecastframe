@@ -26,7 +26,7 @@ def _assert_features_not_in_list(features, list_to_check, message):
 @pytest.mark.skip(reason="simple python functionality")
 def _ensure_is_list(obj):
     """
-    Return an object in a list if not already wrapped. Useful when you 
+    Return an object in a list if not already wrapped. Useful when you
     want to treat an object as a collection,even when the user passes a string
     """
     if not isinstance(obj, list):
@@ -38,7 +38,7 @@ def _ensure_is_list(obj):
 @pytest.mark.skip(reason="simple python functionality")
 def _ensure_is_tuple(obj):
     """
-    Return an object in a tuple if not already wrapped. Useful when you 
+    Return an object in a tuple if not already wrapped. Useful when you
     want to treat an object as a collection, even when the user passes a string
     """
     if not isinstance(obj, tuple):
@@ -153,7 +153,10 @@ def _join_new_columns(self, groupby_df, attribute, index=None):
     join_columns = index + [self.datetime_column]
 
     data.drop(
-        groupby_df, inplace=True, axis=1, errors="ignore",
+        groupby_df,
+        inplace=True,
+        axis=1,
+        errors="ignore",
     )
 
     return data.merge(groupby_df, how="left", on=join_columns)
@@ -228,7 +231,7 @@ def _convert_nonnumerics_to_objects(df):
 @pytest.mark.skip(reason="shortcut for default timer")
 def print_runtime(func, create_global_dict=True):
     """
-    A timer decorator that creates a global dict for reporting times across 
+    A timer decorator that creates a global dict for reporting times across
     multiple runs
     """
 
@@ -370,6 +373,36 @@ def check_memory():
         key=lambda x: -x[1],
     )[:10]:
         print("{:>30}: {:>8}".format(name, sizeof_fmt(size)))
+
+
+def _format_dates(date_series):
+    # measured in seconds
+    date_dict = {
+        1: "%-S",  # second
+        60: "%-M",  # minute
+        60 * 60: "%-H",  # hour
+        60 * 60 * 24: "%b. %-d %Y",  # day
+        60 * 60 * 24 * 7: "Week %U %Y",  # week
+        60 * 60 * 24 * 7 * 4: "%b. %Y",  # month
+        60 * 60 * 24 * 7 * 52: "%Y",  # year
+    }
+
+    def get_average_date_diff(dates):
+        return abs(np.mean(dates - pd.Series(dates).shift(-1)).total_seconds())
+
+    average_diff = get_average_date_diff(date_series)
+
+    # Find which key the average difference is closest to
+    lookup_key = min(date_dict.keys(), key=lambda x: abs(x - average_diff))
+
+    return list(date_series.strftime(date_dict[lookup_key]))
+
+
+def format_dates(self):
+    """
+    Prints a pretty version of the fframe's dateindex as a list of strings
+    """
+    return _format_dates(self.date.index)
 
 
 def _get_processed_outputs(self, sample, groupers=None, fold=None):

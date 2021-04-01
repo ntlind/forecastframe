@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 import forecastframe as ff
@@ -110,7 +111,27 @@ def test_calc_percent_change():
     assert diff <= testing._get_difference_threshold()
 
 
+def test_format_dates():
+
+    test_cases = {
+        "days": pd.date_range(start="1/1/1980", end="1/3/1980", freq="d"),
+        "months": pd.date_range(start="1/1/1980", end="3/1/1980", freq="MS"),
+        "years": pd.date_range(start="1/1/1980", end="1/1/1983", freq="Y"),
+    }
+
+    answers = {
+        "days": ["Jan. 1 1980", "Jan. 2 1980", "Jan. 3 1980"],
+        "months": ["Jan. 1980", "Feb. 1980", "Mar. 1980"],
+        "years": ["1980", "1981", "1982"],
+    }
+
+    for key in test_cases.keys():
+        result = ff.utilities._format_dates(test_cases[key])
+        assert result == answers[key], f"Wrong answer for {key}"
+
+
 if __name__ == "__main__":
+    test_format_dates()
     test_calc_percent_change()
     test_calc_datetime_features()
     test__assert_feature_not_transformed()

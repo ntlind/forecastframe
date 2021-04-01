@@ -1,0 +1,11 @@
+Metadata-Version: 1.2
+Name: ForecastFrame
+Version: 1.0
+Summary: Granular, accurate, and interpretable forecasting made easy
+Home-page: UNKNOWN
+Maintainer: Nick Lind
+Maintainer-email: nick@quantilegroup.com
+License: UNKNOWN
+Description: UNKNOWN
+Platform: any
+Requires-Python: >=3.7.1

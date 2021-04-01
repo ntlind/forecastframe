@@ -113,6 +113,7 @@ class ForecastFrame:
     from forecastframe.utilities import (
         to_pandas,
         get_sample,
+        format_dates,
         _assert_features_in_list,
         _assert_features_not_in_list,
         _get_covariates,
