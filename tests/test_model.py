@@ -187,7 +187,8 @@ def test_predict():
     results = fframe.predictions
 
     assert set(
-        [
+        fframe.hierarchy
+        + [
             f"predicted_{fframe.target}",
             f"predicted_{fframe.target}_upper",
             f"predicted_{fframe.target}_lower",
@@ -215,8 +216,8 @@ def test__make_future_dataframe():
         self=model_object, periods=10, hierarchy=fframe.hierarchy
     )
 
-    answer = 
-    assert set(result["ds"]) == {pd.date_range()}
+    # TODO looks right, but needs a better test
+    assert set(fframe.hierarchy + ["ds"]).issubset(set(result.columns))
 
 
 def test_get_errors():

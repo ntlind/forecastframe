@@ -974,7 +974,7 @@ def _make_future_dataframe(
     if include_history:
         dates = np.concatenate((np.array(self.history_dates), dates))
 
-    if hierarchy is not None:
+    if hierarchy:
         from itertools import product
 
         unique_hierarchical_elements = (
@@ -1092,8 +1092,6 @@ def _fit_prophet(data, *args, **kwargs):
 
     model = model.fit(data)
 
-    print(f"data {data.columns}")
-
     return model
 
 
@@ -1143,25 +1141,6 @@ def _predict_prophet(
         output_df["trend"] * (1 + output_df["multiplicative_terms"])
         + output_df["additive_terms"]
     )
-
-    # columns_to_keep = [
-    #     "ds",
-    #     "yhat",
-    #     "yhat_lower",
-    #     "yhat_upper",
-    #     "trend",
-    #     "trend_upper",
-    #     "trend_lower",
-    #     "weekly",
-    #     "weekly_upper",
-    #     "weekly_lower",
-    #     "daily",
-    #     "daily_upper",
-    #     "daily_lower",
-    #     "yearly",
-    #     "yearly_upper",
-    #     "yearly_lower",
-    # ]
 
     return output_df
 
@@ -1464,4 +1443,4 @@ def get_errors(self):
             predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
-    return data
+    return data[function_mapping_dict.keys()]
