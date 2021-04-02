@@ -203,15 +203,7 @@ def test__merge_actuals():
 
     result = ff.model._merge_actuals(fframe)
 
-    assert set(["sales_int", "predicted_sales_int"]).issubset(set(result.columns))
-
-
-def test__make_future_dataframe():
-    fframe = testing.get_test_fframe()
-
-    processed_df = ff.model._preprocess_prophet_names(self=fframe, df=fframe.data)
-    model_object = ff.model._fit_prophet(processed_df)
-    result = ff.model._make_future_dataframe(self=model_object, df=processed_df)
+    assert ["sales_int", "predicted_sales_int"] in list(result.columns)
 
 
 def test_get_errors():
@@ -227,7 +219,6 @@ def test_get_errors():
 
 
 if __name__ == "__main__":
-    test__make_future_dataframe()
     test_predict()
     test__merge_actuals()
     test_get_errors()
