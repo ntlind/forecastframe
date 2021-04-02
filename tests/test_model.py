@@ -211,7 +211,12 @@ def test__make_future_dataframe():
 
     processed_df = ff.model._preprocess_prophet_names(self=fframe, df=fframe.data)
     model_object = ff.model._fit_prophet(processed_df)
-    result = ff.model._make_future_dataframe(self=model_object, df=processed_df)
+    result = ff.model._make_future_dataframe(
+        self=model_object, periods=10, hierarchy=fframe.hierarchy
+    )
+
+    answer = 
+    assert set(result["ds"]) == {pd.date_range()}
 
 
 def test_get_errors():
