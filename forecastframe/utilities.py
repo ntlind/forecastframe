@@ -403,6 +403,9 @@ def format_dates(self):
     """
     Prints a pretty version of the fframe's dateindex as a list of strings
     """
+    if self.predictions is not None:
+        return _format_dates(self.predictions.index)
+
     return _format_dates(self.data.index)
 
 
