@@ -1163,6 +1163,9 @@ def get_predictions(self, columns_to_keep=None):
             f"predicted_{self.target}_lower",
         ]
 
+        if self.hierarchy:
+            columns_to_keep = columns_to_keep + self.hierarchy
+
     return self.predictions[columns_to_keep]
 
 
