@@ -1021,17 +1021,18 @@ def _fit_prophet(data, *args, **kwargs):
     """
     from fbprophet import Prophet
 
-    if "additional_regressors" in kwargs.keys():
-        additional_regressors = kwargs.pop("additional_regressors")
-    else:
-        additional_regressors = None
-
     model = Prophet(*args, **kwargs)
 
-    if additional_regressors:
-        (model.add_regressor(regressor) for regressor in additional_regressors)
+    # add any additional columns as additional regressors
+    additional_regressors = [
+        col for col in list(data.columns) if col not in ["y", "ds"]
+    ]
+
+    (model.add_regressor(regressor) for regressor in additional_regressors)
 
     model = model.fit(data)
+
+    print(f"data {data.columns}")
 
     return model
 
@@ -1048,10 +1049,13 @@ def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs
 
     Notes
     ----------
+    - future_periods only works if df=None
+
     Original function found here:
     https://github.com/facebook/prophet/blob/master/python/fbprophet/forecaster.py
     """
-    if not df:
+
+    if df is None:
         if not future_periods:
             df = model_object.history.copy()
         else:
@@ -1061,6 +1065,8 @@ def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs
         if df.shape[0] == 0:
             raise ValueError("Dataframe has no rows.")
         df = model_object.setup_dataframe(df.copy())
+
+    print(f"output {df.columns}")
 
     df["trend"] = model_object.predict_trend(df)
     seasonal_components = model_object.predict_seasonal_components(df)
@@ -1075,31 +1081,29 @@ def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs
         + output_df["additive_terms"]
     )
 
-    columns_to_keep = [
-        "ds",
-        "yhat",
-        "yhat_lower",
-        "yhat_upper",
-        "trend",
-        "trend_upper",
-        "trend_lower",
-        "weekly",
-        "weekly_upper",
-        "weekly_lower",
-        "daily",
-        "daily_upper",
-        "daily_lower",
-        "yearly",
-        "yearly_upper",
-        "yearly_lower",
-    ]
+    # columns_to_keep = [
+    #     "ds",
+    #     "yhat",
+    #     "yhat_lower",
+    #     "yhat_upper",
+    #     "trend",
+    #     "trend_upper",
+    #     "trend_lower",
+    #     "weekly",
+    #     "weekly_upper",
+    #     "weekly_lower",
+    #     "daily",
+    #     "daily_upper",
+    #     "daily_lower",
+    #     "yearly",
+    #     "yearly_upper",
+    #     "yearly_lower",
+    # ]
 
-    return output_df[output_df.columns.intersection(columns_to_keep)]
+    return output_df
 
 
-def get_predictions(
-    self, columns_to_keep=["trend", "yhat_upper", "yhat_lower", "yhat"]
-):
+def get_predictions(self, columns_to_keep=None):
     """
     Removes unnecessary columns from predictions dataframe
 
@@ -1109,6 +1113,14 @@ def get_predictions(
     columns_to_keep: List[str], default ["trend", "yhat_upper", "yhat_lower", "yhat"]
         The column you'd like to keep from the output dataframe stored in self.predictions
     """
+    if not columns_to_keep:
+        columns_to_keep = [
+            "trend",
+            f"predicted_{self.target}",
+            f"predicted_{self.target}_upper",
+            f"predicted_{self.target}_lower",
+        ]
+
     return self.predictions[columns_to_keep]
 
 
@@ -1152,7 +1164,11 @@ def _calc_best_prophet_params(self, training_data, param_grid, transform_dict):
     return results
 
 
-def _preprocess_prophet_names(self, df):
+def _preprocess_prophet_names(self, df=None):
+
+    if df is None:
+        df = self.data
+
     new_df = df.reset_index()
     new_df.rename({self.datetime_column: "ds", self.target: "y"}, axis=1, inplace=True)
     return new_df
@@ -1347,29 +1363,33 @@ def _merge_actuals(self):
     """
 
     if self.hierarchy:
-        merged_values = self.predictions.loc[:, [f"predicted_{self.target}"]].merge(
-            self.data[self.target],
+        data = self.predictions.loc[:, [f"predicted_{self.target}"] + self.hierarchy]
+        merged_values = data.merge(
+            self.data.loc[:, [self.target] + self.hierarchy],
             on=[self.datetime_column] + self.hierarchy,
             how="outer",
         )
     else:
         merged_values = self.predictions.loc[:, [f"predicted_{self.target}"]].merge(
-            self.data[self.target], on=[self.datetime_column], how="outer"
+            self.data.loc[:, self.target], on=[self.datetime_column], how="outer"
         )
 
     assert len(merged_values) == len(
         self.predictions
     ), "Something went wrong when merging your actuals back to your predictions"
 
-    return _merge_actuals
+    return merged_values
 
 
 def get_errors(self):
     # merge actuals
+
+    print(self.data.columns)
+    print(self.predictions.columns)
     data = _merge_actuals(self)
 
     # calculate error metrics
-
+    print("BLAH")
     function_mapping_dict = {
         "Actuals": lambda actuals, predictions: actuals,
         "Predictions": lambda actuals, predictions: predictions,
@@ -1381,7 +1401,7 @@ def get_errors(self):
     for metric in function_mapping_dict.keys():
         data[metric] = function_mapping_dict[metric](
             actuals=data[self.target],
-            predictions=data[self.target + "_prediction"],
+            predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
     return data
