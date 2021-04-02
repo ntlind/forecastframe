@@ -387,13 +387,14 @@ def _format_dates(date_series):
         60 * 60 * 24 * 7 * 52: "%Y",  # year
     }
 
-    def get_average_date_diff(dates):
-        return abs(np.mean(dates - pd.Series(dates).shift(-1)).total_seconds())
+    def get_median_date_diff(dates):
+        deltas = dates - pd.Series(dates).shift(-1)
+        return abs(deltas.median().total_seconds())
 
-    average_diff = get_average_date_diff(date_series)
+    median_diff = get_median_date_diff(date_series)
 
-    # Find which key the average difference is closest to
-    lookup_key = min(date_dict.keys(), key=lambda x: abs(x - average_diff))
+    # Find which key the median difference is closest to
+    lookup_key = min(date_dict.keys(), key=lambda x: abs(x - median_diff))
 
     return list(date_series.strftime(date_dict[lookup_key]))
 
@@ -402,7 +403,7 @@ def format_dates(self):
     """
     Prints a pretty version of the fframe's dateindex as a list of strings
     """
-    return _format_dates(self.date.index)
+    return _format_dates(self.data.index)
 
 
 def _get_processed_outputs(self, sample, groupers=None, fold=None):

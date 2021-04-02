@@ -111,7 +111,7 @@ def test_calc_percent_change():
     assert diff <= testing._get_difference_threshold()
 
 
-def test_format_dates():
+def test__format_dates():
 
     test_cases = {
         "days": pd.date_range(start="1/1/1980", end="1/3/1980", freq="d"),
@@ -130,7 +130,18 @@ def test_format_dates():
         assert result == answers[key], f"Wrong answer for {key}"
 
 
+def test_format_dates():
+    fframe = testing.get_test_fframe()
+
+    result = fframe.format_dates()[:4]
+
+    answer = ["Jan. 1 2020", "Jan. 2 2020", "Jan. 3 2020", "Jan. 5 2020"]
+
+    assert result == answer, list(zip(result, answer))
+
+
 if __name__ == "__main__":
+    test__format_dates()
     test_format_dates()
     test_calc_percent_change()
     test_calc_datetime_features()
