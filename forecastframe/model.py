@@ -100,7 +100,7 @@ def _get_regression_lgbm(
 def _get_quantile_scorer(quantile: int):
     """
     Custom quantile scoring method used to win the M5 competition.
-
+    
     Source: https://github.com/Mcompetitions/M5-methods/
     """
     from sklearn.metrics import make_scorer
@@ -116,7 +116,7 @@ def _get_quantile_scorer(quantile: int):
 
 def _get_scaling_function(func_string: str):
     """
-    Helper function to enable users to enter a string denoting their desired
+    Helper function to enable users to enter a string denoting their desired 
     scaling op
     """
     function_dict = {
@@ -134,20 +134,10 @@ def _get_scaling_function(func_string: str):
 
 
 def _calc_best_estimator(
-    X,
-    y,
-    params,
-    estimator,
-    scoring,
-    splitter,
-    cv_func,
-    folds,
-    n_jobs,
-    verbose,
-    n_iter,
+    X, y, params, estimator, scoring, splitter, cv_func, folds, n_jobs, verbose, n_iter,
 ):
     """
-    Intermediary function shared by fit_insample_model and cross_validate_lgbm
+    Intermediary function shared by fit_insample_model and cross_validate_lgbm 
     to fit an sklearn cross-validation method.
     """
     args = {
@@ -183,14 +173,14 @@ def _calc_best_estimator(
 
 def process_outputs(self, groupers=None):
     """
-    For each fold and sample, create a stacked output dataframe with one "Label" for
-    "predictions" and another for "actuals". This dataframe is stored
+    For each fold and sample, create a stacked output dataframe with one "Label" for 
+    "predictions" and another for "actuals". This dataframe is stored 
     in self.processed_outputs
 
     Parameters
     ----------
     groupers : List[str], default None
-        Optional parameter to aggregate your predictions and actuals over some
+        Optional parameter to aggregate your predictions and actuals over some 
         hierarchy other than your fframe's hierarchy (e.g., by ["state", "category"]).
         If None, uses self.hierarchy as your groupers.
     """
@@ -240,19 +230,19 @@ def process_outputs(self, groupers=None):
 
 def filter_outputs(self, groupers=None, filter_func=lambda x: x.head(10)):
     """
-    Filter all of your processed outputs (created using the processed_outputs method)
+    Filter all of your processed outputs (created using the processed_outputs method) 
     to only store the .head() or .tail() largest results when your actuals are summed by
     groupers.
 
     Parameters
     ----------
     groupers : List[str], default None
-        Optional parameter to aggregate your predictions and actuals over some
+        Optional parameter to aggregate your predictions and actuals over some 
         hierarchy other than your fframe's hierarchy (e.g., by ["state", "category"]).
         If None, uses self.hierarchy as your groupers.
     filter_func: function, default lambda x: x.head(10)
-        A function to use for filtering. The default will only store the top 10 largest results
-        when aggregated by groupers.
+        A function to use for filtering. The default will only store the top 10 largest results 
+        when aggregated by groupers. 
     """
 
     def _get_index_to_filter_on(fframe, data, groupers, filter_func):
@@ -303,7 +293,7 @@ def filter_outputs(self, groupers=None, filter_func=lambda x: x.head(10)):
 
 def _handle_scoring_func(scoring_func, **kwargs):
     """
-    Handles cases where we want to pass a scoring function, rather than the
+    Handles cases where we want to pass a scoring function, rather than the 
     usual string. Used in cross_validate_lgbms.
     """
     if callable(scoring_func):
@@ -315,7 +305,7 @@ def _handle_scoring_func(scoring_func, **kwargs):
 def predict_lgbm(self, predict_df):
     """
     Predict future occurences of an input df
-
+    
     Parameters
     ----------
     predict_df: pd.DataFrame
@@ -356,7 +346,7 @@ def cross_validate_lgbm(
     **kwargs,
 ):
     """
-    Splits your data into [folds] rolling folds, fits the best estimator to each fold,
+    Splits your data into [folds] rolling folds, fits the best estimator to each fold, 
     and creates out-of-sample predictions for analysis.
 
     Parameters
@@ -366,7 +356,7 @@ def cross_validate_lgbm(
     estimator_func : function, default _get_quantile_lgbm
         A function to create the LGBM estimator that you're intersted in using
     splitter : object, default LeaveOneGroupOut
-        The strategy that sklearn uses to split your cross-validation set. Defaults to
+        The strategy that sklearn uses to split your cross-validation set. Defaults to 
         LeaveOneGroupOut.
     cv_func : object, default RandomizedSearchCV
         The search algorithm used to find the best parameters. We recommend
@@ -672,15 +662,15 @@ def calc_error_metrics(
     fold : int
         The fold for which to calculate error metrics for.
     metrics : List[str], default ["AE", "APE", "APA", "SE"]
-        The metrics you'd like to calculate. Should contain only "APA", "APE",
+        The metrics you'd like to calculate. Should contain only "APA", "APE", 
         "AE", "SE", "Actuals", or "Predictions".
     replace_infinities : bool, default True
         If True, replace infinite values with missings (common with some error metrics)
     groupers : list, default None
-        If a list of groupers is passed, it will calculate error metrics for a given
+        If a list of groupers is passed, it will calculate error metrics for a given 
         set of aggregated predictions stored in processed_outputs.
     date_range : tuple, default None
-        If tuple of (start_date, end_date) is passed, will only calculate error metrics for
+        If tuple of (start_date, end_date) is passed, will only calculate error metrics for 
         the specified date range (inclusive)
     """
     import functools
@@ -712,10 +702,7 @@ def calc_error_metrics(
 
         for metric in ["Actuals", "Predictions"] + metrics:
             calculation_series = pd.Series(
-                function_mapping_dict[metric](
-                    actuals=actuals,
-                    predictions=predictions,
-                )
+                function_mapping_dict[metric](actuals=actuals, predictions=predictions,)
             )
 
             if replace_infinities:
@@ -739,10 +726,10 @@ def calc_all_error_metrics(self, groupers=None, date_range=None):
     Parameters
     ----------
     groupers : list, default None
-        If a list of groupers is passed, it will calculate error metrics for a given
+        If a list of groupers is passed, it will calculate error metrics for a given 
         set of aggregated predictions stored in processed_outputs.
     date_range : tuple, default None
-        If tuple of (start_date, end_date) is passed, will only calculate error metrics for
+        If tuple of (start_date, end_date) is passed, will only calculate error metrics for 
         the specified date range (inclusive)
     """
 
@@ -764,7 +751,7 @@ def calc_all_error_metrics(self, groupers=None, date_range=None):
 
 def custom_asymmetric_train(y_pred, y_true, loss_multiplier=0.9):
     """
-    Custom assymetric loss function that penalizes negative residuals more
+    Custom assymetric loss function that penalizes negative residuals more 
     than positive residuals. Used to win the M5 competition.
     """
     y_true = y_true.get_label()
@@ -776,7 +763,7 @@ def custom_asymmetric_train(y_pred, y_true, loss_multiplier=0.9):
 
 def custom_asymmetric_valid(y_pred, y_true, loss_multiplier=0.9):
     """
-    Custom assymetric loss function that penalizes negative residuals more
+    Custom assymetric loss function that penalizes negative residuals more 
     than positive residuals. Used to win the M5 competition.
     """
     y_true = y_true.get_label()
@@ -788,13 +775,13 @@ def custom_asymmetric_valid(y_pred, y_true, loss_multiplier=0.9):
 def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False):
     """
     Run all of the scaling functions stored in self.scalers_list
-
+    
     Parameters
     ----------
     df_list : List[pd.DataFrame]
         a list of dataframes that you want to scale
     augment_feature_list : bool, default True
-        If true, will also scale any variables that are similiarly named to the feature
+        If true, will also scale any variables that are similiarly named to the feature 
         passed to your transformation functions. Purpose is to scale derivative features.
     Returns
     ----------
@@ -831,8 +818,8 @@ def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False
 def _run_ensembles(self, train, test):
     """
     Run all stored modeling ensembles in self.ensemble_list on some input df.
-    For example: if you called calc_prophet_predictions in your modeling pipeline,
-    then _run_ensembles will generate predictions for all of your test and training data.
+    For example: if you called calc_prophet_predictions in your modeling pipeline, 
+    then _run_ensembles will generate predictions for all of your test and training data. 
     """
 
     assert isinstance(train, pd.DataFrame) & isinstance(test, pd.DataFrame)
@@ -854,7 +841,7 @@ def _run_ensembles(self, train, test):
 
 def _run_feature_engineering(self, data):
     """
-    Run all of the stored feature engineering calls in self.function_list
+    Run all of the stored feature engineering calls in self.function_list 
     on some input dataframe.
     """
 
@@ -909,9 +896,7 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     scaled_test[self.target] = None
 
     combined_data = pd.concat(
-        [scaled_train, scaled_test],
-        keys=["train", "test"],
-        axis=0,
+        [scaled_train, scaled_test], keys=["train", "test"], axis=0,
     )
 
     combined_data.index.names = ["_sample_name", self.datetime_column]
@@ -945,7 +930,7 @@ def _fit_prophet(data, *args, **kwargs):
     ----------
     data : pd.DataFrame
         The dataframe you want to use to fit your Prophet object
-
+    
     Additional Parameters (passed as *args or **kwargs to Prophet)
     ----------
     interval_width: float, default .95
@@ -958,7 +943,7 @@ def _fit_prophet(data, *args, **kwargs):
         anomaly detection.
     growth: str, default "linear"
         String 'linear' or 'logistic' to specify a linear or logistic trend.
-    changepoints: list, default None
+    changepoints: list, default None 
         List of dates at which to include potential changepoints. If
         not specified, potential changepoints are selected automatically.
     n_changepoints: int, default 25
@@ -966,22 +951,22 @@ def _fit_prophet(data, *args, **kwargs):
         if input `changepoints` is supplied. If `changepoints` is not supplied,
         then n_changepoints potential changepoints are selected uniformly from
         the first `changepoint_range` proportion of the history.
-    changepoint_range: float, default .8
+    changepoint_range: float, default .8 
         Proportion of history in which trend changepoints will
         be estimated. Defaults to 0.8 for the first 80%. Not used if
         `changepoints` is specified.
-    yearly_seasonality: bool, str, or int, default "auto"
-        If true, adds Fourier terms to model changes in annual seasonality. Pass
-        an int to manually control the number of Fourier terms added, where 10
-        is the default and 20 creates a more flexible model but increases the
+    yearly_seasonality: bool, str, or int, default "auto" 
+        If true, adds Fourier terms to model changes in annual seasonality. Pass 
+        an int to manually control the number of Fourier terms added, where 10 
+        is the default and 20 creates a more flexible model but increases the 
         risk of overfitting.
     weekly_seasonality: bool, str, or int, default "auto"
         Fit weekly seasonality.
         Can be 'auto', True, False, or a number of Fourier terms to generate.
-    daily_seasonality: bool, str, or int, default "auto"
-        If true, adds Fourier terms to model changes in daily seasonality. Pass
-        an int to manually control the number of Fourier terms added, where 10
-        is the default and 20 creates a more flexible model but increases the
+    daily_seasonality: bool, str, or int, default "auto"  
+        If true, adds Fourier terms to model changes in daily seasonality. Pass 
+        an int to manually control the number of Fourier terms added, where 10 
+        is the default and 20 creates a more flexible model but increases the 
         risk of overfitting.
     holidays: bool, default None
         pd.DataFrame with columns holiday (string) and ds (date type)
@@ -992,7 +977,7 @@ def _fit_prophet(data, *args, **kwargs):
         that holiday.
     seasonality_mode: str, default "additive"
         'additive' (default) or 'multiplicative'. Multiplicative seasonality implies
-        that each season applies a scaling effect to the overall trend, while additive
+        that each season applies a scaling effect to the overall trend, while additive 
         seasonality implies adding seasonality to trend to arrive at delta.
     seasonality_prior_scale: float, default 10.0
         Parameter modulating the strength of the
@@ -1002,14 +987,14 @@ def _fit_prophet(data, *args, **kwargs):
     holidays_prior_scale: float, default 10.0
         Parameter modulating the strength of the holiday
         components model, unless overridden in the holidays input.
-    changepoint_prior_scale: float, default 0.05
+    changepoint_prior_scale: float, default 0.05 
         Parameter modulating the flexibility of the
         automatic changepoint selection. Large values will allow many
         changepoints, small values will allow few changepoints.
     mcmc_samples: int, default 0
         Integer, if greater than 0, will do full Bayesian inference
         with the specified number of MCMC samples. If 0, will do MAP
-        estimation, which only measures uncertainty in the trend and
+        estimation, which only measures uncertainty in the trend and 
         observation noise but is much faster to run.
     uncertainty_samples: int, default 1000
         Number of simulated draws used to estimate
@@ -1039,7 +1024,7 @@ def _fit_prophet(data, *args, **kwargs):
 def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs):
     """
     A custom version of Prophet's .predict() method which doesn't discard columns.
-
+    
     Parameters
     ----------
     df: pd.DataFrame with dates for predictions (column ds), and capacity
@@ -1048,7 +1033,7 @@ def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs
 
     Notes
     ----------
-    Original function found here:
+    Original function found here: 
     https://github.com/facebook/prophet/blob/master/python/fbprophet/forecaster.py
     """
     if not df:
@@ -1102,7 +1087,7 @@ def get_predictions(
 ):
     """
     Removes unnecessary columns from predictions dataframe
-
+    
     Parameters
     ----------
 
@@ -1159,17 +1144,7 @@ def _preprocess_prophet_names(self, df):
 
 
 def _postprocess_prophet_names(self, df):
-    df.rename(
-        {
-            "ds": self.datetime_column,
-            "y": self.target,
-            "yhat": f"predicted_{self.target}",
-            "yhat_upper": f"predicted_{self.target}_upper",
-            "yhat_lower": f"predicted_{self.target}_lower",
-        },
-        axis=1,
-        inplace=True,
-    )
+    df.rename({"ds": self.datetime_column, "y": self.target}, axis=1, inplace=True)
     df.set_index(self.datetime_column, inplace=True)
     return df
 
@@ -1184,7 +1159,7 @@ def cross_validate_prophet(
     **kwargs,
 ):
     """
-    Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search,
+    Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search, 
     and creates out-of-sample predictions for analysis.
 
     Parameters
@@ -1192,7 +1167,7 @@ def cross_validate_prophet(
     params : dict, default None
         A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
     splitter : object, default LeaveOneGroupOut
-        The strategy that sklearn uses to split your cross-validation set. Defaults to
+        The strategy that sklearn uses to split your cross-validation set. Defaults to 
         LeaveOneGroupOut.
     folds : int, default 5
         Number of folds to use during cross-valdation
@@ -1262,10 +1237,7 @@ def cross_validate_prophet(
             self._descale_target(
                 array=df, transform_dict=transform_dict, target="prophet_yhat"
             )
-            for df in [
-                train_predictions,
-                test_predictions,
-            ]
+            for df in [train_predictions, test_predictions,]
         ]
 
         test_error = np.round(
@@ -1311,11 +1283,11 @@ def _generate_prophet_predictions(self, future_periods, *args, **kwargs):
 
 
 def predict(
-    self, model="prophet", future_periods=None, return_results=False, *args, **kwargs
+    self, model="prophet", future_periods=None, return_results=True, *args, **kwargs
 ):
     """
     Predict the future using the data stored in your fframe
-
+    
     Parameters
     ----------
     model: str, default 'prophet'
@@ -1340,48 +1312,3 @@ def predict(
     if return_results:
         return output
 
-
-def _merge_actuals(self):
-    """
-    Merge your actuals column back with your predictions df
-    """
-
-    if self.hierarchy:
-        merged_values = self.predictions.loc[:, [f"predicted_{self.target}"]].merge(
-            self.data[self.target],
-            on=[self.datetime_column] + self.hierarchy,
-            how="outer",
-        )
-    else:
-        merged_values = self.predictions.loc[:, [f"predicted_{self.target}"]].merge(
-            self.data[self.target], on=[self.datetime_column], how="outer"
-        )
-
-    assert len(merged_values) == len(
-        self.predictions
-    ), "Something went wrong when merging your actuals back to your predictions"
-
-    return _merge_actuals
-
-
-def get_errors(self):
-    # merge actuals
-    data = _merge_actuals(self)
-
-    # calculate error metrics
-
-    function_mapping_dict = {
-        "Actuals": lambda actuals, predictions: actuals,
-        "Predictions": lambda actuals, predictions: predictions,
-        "Absolute Percent Error": _calc_APE,
-        "Absolute Error": _calc_AE,
-        "Squared Error": _calc_SE,
-    }
-
-    for metric in function_mapping_dict.keys():
-        data[metric] = function_mapping_dict[metric](
-            actuals=data[self.target],
-            predictions=data[self.target + "_prediction"],
-        ).replace([-np.inf, np.inf], np.nan)
-
-    return data
