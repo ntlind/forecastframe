@@ -937,50 +937,65 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     return final_train, final_test, transform_dict
 
 
- def _make_future_dataframe(self, periods, freq='D', include_history=True, hierarchy=None):
-        """Simulate the trend using the extrapolated generative model. This is a modified version of the original code that can create multiple timeseries for a given hierarchy
+def _make_future_dataframe(
+    self, periods, freq="D", include_history=True, hierarchy=None
+):
+    """
+    Simulate the trend using the extrapolated generative model. This is a modified version of the original code that can create multiple timeseries for a given hierarchy
 
 
-        Parameters
-        ----------
-        periods: Int number of periods to forecast forward.
-        freq: Any valid frequency for pd.date_range, such as 'D' or 'M'.
-        include_history: Boolean to include the historical dates in the data
-            frame for predictions.
-        Returns
-        -------
-        pd.Dataframe that extends forward from the end of self.history for the
-        requested number of periods.
+    Parameters
+    ----------
+    periods: Int number of periods to forecast forward.
+    freq: Any valid frequency for pd.date_range, such as 'D' or 'M'.
+    include_history: Boolean to include the historical dates in the data
+        frame for predictions.
+    Returns
+    -------
+    pd.Dataframe that extends forward from the end of self.history for the
+    requested number of periods.
 
-        Notes
-        -----
+    Notes
+    -----
 
-        Original code found here: https://github.com/facebook/prophet/blob/master/python/prophet/forecaster.py
-        """
-        if self.history_dates is None:
-            raise Exception('Model has not been fit.')
-        last_date = self.history_dates.max()
-        dates = pd.date_range(
-            start=last_date,
-            periods=periods + 1,  # An extra in case we include start
-            freq=freq)
-        dates = dates[dates > last_date]  # Drop start if equals last_date
-        dates = dates[:periods]  # Return correct number of periods
+    Original code found here: https://github.com/facebook/prophet/blob/master/python/prophet/forecaster.py
+    """
+    if self.history_dates is None:
+        raise Exception("Model has not been fit.")
+    last_date = self.history_dates.max()
+    dates = pd.date_range(
+        start=last_date,
+        periods=periods + 1,  # An extra in case we include start
+        freq=freq,
+    )
+    dates = dates[dates > last_date]  # Drop start if equals last_date
+    dates = dates[:periods]  # Return correct number of periods
 
-        if include_history:
-            dates = np.concatenate((np.array(self.history_dates), dates))
+    if include_history:
+        dates = np.concatenate((np.array(self.history_dates), dates))
 
-        if hierarchy is not None:
-            from itertools import product
-            unique_hierarchical_elements = self.history[hierarchy].drop_duplicates().values.tolist()
+    if hierarchy is not None:
+        from itertools import product
 
-            output_df = pd.DataFrame([hierarchy_cols + [date_col] for hierarchy_cols, date_col in product(unique_hierarchical_elements, dates)])
+        unique_hierarchical_elements = (
+            self.history[hierarchy].drop_duplicates().values.tolist()
+        )
 
-        else:
-            output_df = pd.DataFrame({'ds': dates})
+        output_df = pd.DataFrame(
+            [
+                hierarchy_cols + [date_col]
+                for hierarchy_cols, date_col in product(
+                    unique_hierarchical_elements, dates
+                )
+            ],
+            columns=hierarchy + ["ds"],
+        )
 
+    else:
+        output_df = pd.DataFrame({"ds": dates})
 
-        return output_df
+    return output_df
+
 
 def _fit_prophet(data, *args, **kwargs):
     """
@@ -1082,7 +1097,9 @@ def _fit_prophet(data, *args, **kwargs):
     return model
 
 
-def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs):
+def _predict_prophet(
+    model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
+):
     """
     A custom version of Prophet's .predict() method which doesn't discard columns.
 
@@ -1091,6 +1108,7 @@ def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs
     df: pd.DataFrame with dates for predictions (column ds), and capacity
         (column cap) if logistic growth. If not provided, predictions are
         made on the history.
+    #TODO update
 
     Notes
     ----------
@@ -1104,14 +1122,14 @@ def _predict_prophet(model_object, df=None, future_periods=None, *args, **kwargs
         if not future_periods:
             df = model_object.history.copy()
         else:
-            df = _make_future_dataframe(self=model_object, periods=future_periods, hierarchy=)
+            df = _make_future_dataframe(
+                self=model_object, periods=future_periods, hierarchy=hierarchy
+            )
             df = model_object.setup_dataframe(df)
     else:
         if df.shape[0] == 0:
             raise ValueError("Dataframe has no rows.")
         df = model_object.setup_dataframe(df.copy())
-
-    print(f"output {df.columns}")
 
     df["trend"] = model_object.predict_trend(df)
     seasonal_components = model_object.predict_seasonal_components(df)
@@ -1361,7 +1379,9 @@ def _generate_prophet_predictions(self, future_periods, *args, **kwargs):
 
     estimator = _fit_prophet(data=processed_df, *args, **kwargs)
     predictions = _predict_prophet(
-        model_object=estimator, future_periods=future_periods
+        model_object=estimator,
+        future_periods=future_periods,
+        hierarchy=self.hierarchy,
     )
 
     output = _postprocess_prophet_names(self=self, df=predictions)
