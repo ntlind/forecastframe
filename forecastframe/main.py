@@ -48,7 +48,9 @@ class ForecastFrame:
         self.ensemble_list = []
         self.scalers_list = []
         self.alerts = {}
+
         self.predictions = None
+        self.cross_validations = []
 
     def _set_data(self, df):
         """Check user-specified hierarchy to be sure it's the primary key"""
@@ -95,7 +97,7 @@ class ForecastFrame:
     from forecastframe.model import (
         predict,
         cross_validate_lgbm,
-        cross_validate_prophet,
+        cross_validate,
         process_outputs,
         calc_all_error_metrics,
         filter_outputs,

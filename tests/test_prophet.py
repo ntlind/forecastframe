@@ -112,7 +112,7 @@ def main():
     #  assert len(fframe.function_list) == 9
 
     # Modeling
-    fframe.cross_validate_prophet(additional_regressors="all")
+    fframe._cross_validate_prophet(additional_regressors="all")
 
     fframe.process_outputs()
 

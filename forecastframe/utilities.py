@@ -121,7 +121,7 @@ def _reset_hierarchy_index(self, df):
 
 
 @pytest.mark.skip(reason="simple python functionality")
-def _reset_multi_index(self, df, index=None):
+def _reset_multi_index(self, df, hierarchy=None):
     """
     Set the index using both the datetime_column and
     hierarchy metadata.
@@ -132,10 +132,12 @@ def _reset_multi_index(self, df, index=None):
         A pandas DataFrame object. Will eventually support Ray and
         mxnet dataframes.
     """
-    if not index:
-        index = self.hierarchy
+    if not hierarchy:
+        output = self._reset_index(df, [self.datetime_column])
+    else:
+        output = self._reset_index(df, [self.datetime_column] + hierarchy)
 
-    return self._reset_index(df, [self.datetime_column] + index)
+    return output
 
 
 def _join_new_columns(self, groupby_df, attribute, index=None):
@@ -153,10 +155,7 @@ def _join_new_columns(self, groupby_df, attribute, index=None):
     join_columns = index + [self.datetime_column]
 
     data.drop(
-        groupby_df,
-        inplace=True,
-        axis=1,
-        errors="ignore",
+        groupby_df, inplace=True, axis=1, errors="ignore",
     )
 
     return data.merge(groupby_df, how="left", on=join_columns)
@@ -178,7 +177,8 @@ def _update_values(self, df_to_update, second_df):
         Will eventually support Ray and mxnet dataframes.
     """
     df_to_update, second_df = [
-        self._reset_multi_index(df) for df in [df_to_update, second_df]
+        self._reset_multi_index(df, hierarchy=self.hierarchy)
+        for df in [df_to_update, second_df]
     ]
 
     df_to_update.update(second_df)

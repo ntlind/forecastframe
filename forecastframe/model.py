@@ -134,17 +134,7 @@ def _get_scaling_function(func_string: str):
 
 
 def _calc_best_estimator(
-    X,
-    y,
-    params,
-    estimator,
-    scoring,
-    splitter,
-    cv_func,
-    folds,
-    n_jobs,
-    verbose,
-    n_iter,
+    X, y, params, estimator, scoring, splitter, cv_func, folds, n_jobs, verbose, n_iter,
 ):
     """
     Intermediary function shared by fit_insample_model and cross_validate_lgbm
@@ -579,10 +569,7 @@ def get_prophet_params(indicator="light"):
             "holidays_prior_scale": [0.1, 0.2, 0.3, 0.4, 0.5],
             "n_changepoints": [100, 150, 200],
         },
-        "light": {
-            "changepoint_prior_scale": [0.001, 0.01, 0.1, 0.5],
-            "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
-        },
+        "light": {"seasonality_mode": ("multiplicative", "additive"),},
     }
 
     return param_dict[indicator]
@@ -712,10 +699,7 @@ def calc_error_metrics(
 
         for metric in ["Actuals", "Predictions"] + metrics:
             calculation_series = pd.Series(
-                function_mapping_dict[metric](
-                    actuals=actuals,
-                    predictions=predictions,
-                )
+                function_mapping_dict[metric](actuals=actuals, predictions=predictions,)
             )
 
             if replace_infinities:
@@ -904,14 +888,17 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
         transform_dict = {}
 
     # mask actuals in test set before feature engineering
-    unmasked_scaled_test = scaled_test[self.hierarchy + [self.target]].copy(deep=True)
+    if self.hierarchy:
+        unmasked_scaled_test = scaled_test[self.hierarchy + [self.target]].copy(
+            deep=True
+        )
+    else:
+        unmasked_scaled_test = scaled_test[[self.target]].copy(deep=True)
 
     scaled_test[self.target] = None
 
     combined_data = pd.concat(
-        [scaled_train, scaled_test],
-        keys=["train", "test"],
-        axis=0,
+        [scaled_train, scaled_test], keys=["train", "test"], axis=0,
     )
 
     combined_data.index.names = ["_sample_name", self.datetime_column]
@@ -1110,7 +1097,7 @@ def _predict_prophet(
 
     Notes
     ----------
-    - future_periods only works if df=None
+    - future_periods and hierarchy only matter if df is NoneType
 
     Original function found here:
     https://github.com/facebook/prophet/blob/master/python/fbprophet/forecaster.py
@@ -1169,9 +1156,12 @@ def get_predictions(self, columns_to_keep=None):
     return self.predictions[columns_to_keep]
 
 
-def _calc_best_prophet_params(self, training_data, param_grid, transform_dict):
+def _grid_search_prophet_params(self, training_data, param_grid, transform_dict):
     """
     Cross-validate prophet model and return the best parameters
+
+    TODO multiprocess; select parameters using out-of-sample error
+    #TODO allow user to pick the metric used to determine best params
     """
     from fbprophet.diagnostics import cross_validation, performance_metrics
 
@@ -1180,7 +1170,7 @@ def _calc_best_prophet_params(self, training_data, param_grid, transform_dict):
     # Use cross validation to evaluate all parameters
     for param in param_grid:
         estimator = _fit_prophet(training_data, **param)
-        predictions = _predict_prophet(self, estimator)["prophet_yhat"]
+        predictions = _predict_prophet(model_object=estimator, df=training_data)["yhat"]
 
         descaled_actuals, descaled_predictions = [
             self._descale_target(df, transform_dict)
@@ -1235,13 +1225,12 @@ def _postprocess_prophet_names(self, df):
     return df
 
 
-def cross_validate_prophet(
+def _cross_validate_prophet(
     self,
     params: dict = None,
     splitter: object = LeaveOneGroupOut,
     folds: int = 5,
     gap: int = 0,
-    additional_regressors="all",
     **kwargs,
 ):
     """
@@ -1259,9 +1248,6 @@ def cross_validate_prophet(
         Number of folds to use during cross-valdation
     gap : int, default 0
         Number of periods to skip in between test and training folds.
-    additional_regressors : str or List[str], default None
-        If "all", will treat all other variable passed into the dataframe as additional regressors. If a list of strings,
-        will include any passed column names as addiitional regressors.
     """
 
     import itertools
@@ -1295,12 +1281,7 @@ def cross_validate_prophet(
             _preprocess_prophet_names(self=self, df=df) for df in [train, test]
         ]
 
-        if additional_regressors == "all":
-            regressors = list(train.columns.drop(["ds", "y"]))
-        elif isinstance(additional_regressors, list):
-            params["additional_regressors"] = additional_regressors
-
-        estimator_dict = _calc_best_prophet_params(
+        estimator_dict = _grid_search_prophet_params(
             self=self,
             training_data=train,
             param_grid=parameter_combinations,
@@ -1308,11 +1289,11 @@ def cross_validate_prophet(
         )
 
         train_predictions = _predict_prophet(
-            self, model_object=estimator_dict["best_estimator"], df=train
-        )["prophet_yhat"]
+            model_object=estimator_dict["best_estimator"], df=train,
+        )["yhat"]
         test_predictions = _predict_prophet(
-            self, model_object=estimator_dict["best_estimator"], df=test
-        )["prophet_yhat"]
+            model_object=estimator_dict["best_estimator"], df=test
+        )["yhat"]
 
         (train_actuals, test_actuals,) = [
             self._descale_target(array=df, transform_dict=transform_dict, target="y")
@@ -1320,50 +1301,30 @@ def cross_validate_prophet(
         ]
 
         (descaled_train_predictions, descaled_test_predictions,) = [
-            self._descale_target(
-                array=df, transform_dict=transform_dict, target="prophet_yhat"
-            )
-            for df in [
-                train_predictions,
-                test_predictions,
-            ]
+            self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
+            for df in [train_predictions, test_predictions,]
         ]
 
-        test_error = np.round(
-            _calc_RMSE(actuals=test["y"], predictions=descaled_test_predictions)
-        )
+        train[f"predicted_{self.target}"], train[f"actuals_{self.target}"] = [
+            descaled_train_predictions,
+            train_actuals,
+        ]
+        test[f"predicted_{self.target}"], test[f"actuals_{self.target}"] = [
+            descaled_test_predictions,
+            test_actuals,
+        ]
 
-        results.update(
-            {
-                fold: {
-                    "best_estimator": estimator_dict["best_estimator"],
-                    "OOS_predictions": descaled_test_predictions,
-                    "OOS_actuals": test_actuals,
-                    "OOS_input": test,
-                    "IS_predictions": descaled_train_predictions,
-                    "IS_actuals": train_actuals,
-                    "IS_input": train,
-                    "best_IS_error": estimator_dict["best_error"],
-                    "best_OOS_error": test_error,
-                    "best_params": estimator_dict["best_params"],
-                    "tuning_results": estimator_dict["tuning_results"],  # TODO delete
-                }
-            }
-        )
-
-    self.results = results
+        self.cross_validations.append({"train": train, "test": test})
 
 
-def _generate_prophet_predictions(self, future_periods, *args, **kwargs):
+def _get_prophet_predictions(self, future_periods, *args, **kwargs):
     """Helpers functions to produce prophet forecasts"""
 
     processed_df = _preprocess_prophet_names(self=self, df=self.data)
 
     estimator = _fit_prophet(data=processed_df, *args, **kwargs)
     predictions = _predict_prophet(
-        model_object=estimator,
-        future_periods=future_periods,
-        hierarchy=self.hierarchy,
+        model_object=estimator, future_periods=future_periods, hierarchy=self.hierarchy,
     )
 
     output = _postprocess_prophet_names(self=self, df=predictions)
@@ -1387,7 +1348,7 @@ def predict(
         The number of periods forward to predict. If None, returns in-sample predictions using training dataframe
     """
 
-    model_mappings = {"prophet": _generate_prophet_predictions}
+    model_mappings = {"prophet": _get_prophet_predictions}
     assert (
         model in model_mappings.keys()
     ), f"Model must be one of {model_mappings.keys()}"
@@ -1402,6 +1363,52 @@ def predict(
 
     if return_results:
         return output
+
+
+def cross_validate(
+    self,
+    model="prophet",
+    params: dict = None,
+    folds: int = 5,
+    gap: int = 0,
+    splitter: object = LeaveOneGroupOut,
+    *args,
+    **kwargs,
+):
+    """
+    Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search,
+    and creates out-of-sample predictions for analysis.
+
+    Parameters
+    ----------
+    model : dict, default "prophet"
+        The type of modeling algorithm to use.
+    params : dict, default None
+        A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
+    splitter : object, default LeaveOneGroupOut
+        The strategy that sklearn uses to split your cross-validation set. Defaults to
+        LeaveOneGroupOut.
+    folds : int, default 5
+        Number of folds to use during cross-valdation
+    gap : int, default 0
+        Number of periods to skip in between test and training folds.
+    """
+    model_mappings = {"prophet": _cross_validate_prophet}
+    assert (
+        model in model_mappings.keys()
+    ), f"Model must be one of {model_mappings.keys()}"
+
+    modeling_function = model_mappings[model]
+
+    modeling_function(
+        self=self,
+        params=params,
+        folds=5,
+        gap=0,
+        splitter=LeaveOneGroupOut,
+        *args,
+        **kwargs,
+    )
 
 
 def _merge_actuals(self):
@@ -1442,8 +1449,7 @@ def get_errors(self):
 
     for metric in function_mapping_dict.keys():
         data[metric] = function_mapping_dict[metric](
-            actuals=data[self.target],
-            predictions=data[f"predicted_{self.target}"],
+            actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
     return data[function_mapping_dict.keys()]

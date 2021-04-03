@@ -95,7 +95,7 @@ class ForecastFrame:
     from forecastframe.model import (
         predict,
         cross_validate_lgbm,
-        cross_validate_prophet,
+        _cross_validate_prophet,
         process_outputs,
         calc_all_error_metrics,
         filter_outputs,
