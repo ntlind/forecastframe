@@ -584,9 +584,9 @@ def get_prophet_params(indicator="light"):
         },
         "light": {
             "seasonality_mode": ("multiplicative", "additive"),
-            "daily_seasonality": (True, False),
-            "weekly_seasonality": (True, False),
-            "yearly_seasonality": (True, False),
+            "daily_seasonality": (True,),
+            "weekly_seasonality": (True,),
+            "yearly_seasonality": (True,),
         },
     }
 
