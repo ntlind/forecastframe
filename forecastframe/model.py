@@ -1305,11 +1305,11 @@ def _cross_validate_prophet(
             for df in [train_predictions, test_predictions,]
         ]
 
-        train[f"predicted_{self.target}"], train[f"actuals_{self.target}"] = [
+        train[f"predicted_{self.target}"], train[f"{self.target}"] = [
             descaled_train_predictions,
             train_actuals,
         ]
-        test[f"predicted_{self.target}"], test[f"actuals_{self.target}"] = [
+        test[f"predicted_{self.target}"], test[f"{self.target}"] = [
             descaled_test_predictions,
             test_actuals,
         ]
@@ -1434,12 +1434,8 @@ def _merge_actuals(self):
     return merged_values
 
 
-def get_errors(self):
-    # merge actuals
-    data = _merge_actuals(self)
-
-    # calculate error metrics
-    function_mapping_dict = {
+def _get_error_func_dict():
+    return {
         "Actuals": lambda actuals, predictions: actuals,
         "Predictions": lambda actuals, predictions: predictions,
         "Absolute Percent Error": _calc_APE,
@@ -1447,9 +1443,68 @@ def get_errors(self):
         "Squared Error": _calc_SE,
     }
 
+
+def get_cross_validation_errors(self, describe=True):
+    """
+    Calculate the in-sample and out-of-sample error metrics for the data found in .cross_validations
+    
+    Parameters
+    ----------
+    describe: bool, default True
+        If True, returns a summary of the error metric distribution rather than the actual errors.
+    """
+
+    assert (
+        self.cross_validations
+    ), "Please run .cross_validate before calling this function"
+
+    function_mapping_dict = _get_error_func_dict()
+
+    result_list = []
+
+    for fold in self.cross_validations():
+        train, test = fold["train"], fold["test"]
+        result_list.append(
+            {
+                "In-Sample": _calc_errors(self=self, data=train, describe=describe),
+                "Out-of-Sample": _calc_errors(self=self, data=test, describe=describe),
+            }
+        )
+
+    return result_list
+
+
+def _calc_errors(self, data, describe):
+    """
+    Calculate all error metrics using the function outlined in _get_error_func_dict
+    """
+
+    function_mapping_dict = _get_error_func_dict()
+
     for metric in function_mapping_dict.keys():
         data[metric] = function_mapping_dict[metric](
             actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
+    if describe:
+        # filter out rows where we're missing actuals
+        data = data[~data[self.target].isnull()]
+        data.describe()
+
     return data[function_mapping_dict.keys()]
+
+
+def get_errors(self, describe=True):
+    """
+    Calculate in-sample error metrics using the predictions found in .predictions
+    
+    Parameters
+    ----------
+    describe: bool, default True
+        If True, returns a summary of the error metric distribution rather than the actual errors.
+    """
+    data = _merge_actuals(self)
+
+    data = _calc_errors(self=self, data=data, describe=describe)
+
+    return data

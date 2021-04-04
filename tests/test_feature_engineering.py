@@ -401,21 +401,21 @@ def test_calc_percent_relative_to_threshold():
         assert diff <= testing._get_difference_threshold()
 
 
-def test_calc_prophet_predictions():
-    fframe = testing.get_test_fframe()
-    fframe.sample = fframe.sample.dropna()
+# TODO delete
+# def test_calc_prophet_predictions():
+#     fframe = testing.get_test_fframe()
+#     fframe.sample = fframe.sample.dropna()
 
-    fframe.calc_prophet_predictions(
-        interval_width=0.8, additional_regressors=["category", "state", "store"]
-    )
-    result = fframe.get_sample()
-    assert set(["prophet_yhat", "prophet_yhat_upper", "prophet_trend"]).issubset(
-        set(result.columns)
-    )
+#     fframe.calc_prophet_predictions(
+#         interval_width=0.8, additional_regressors=["category", "state", "store"]
+#     )
+#     result = fframe.get_sample()
+#     assert set(["prophet_yhat", "prophet_yhat_upper", "prophet_trend"]).issubset(
+#         set(result.columns)
+#     )
 
 
 if __name__ == "__main__":
-    test_calc_prophet_predictions()
     test_join_demographics()
     test_calc_percent_relative_to_threshold()
     test_calc_ewma()

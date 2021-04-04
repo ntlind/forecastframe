@@ -131,6 +131,8 @@ def test__format_dates():
 
 
 def test_format_dates():
+    # NOTE: this test will pass on linux and fail on windows
+    # To illustrate, observe that %#d will work on windows when passed to strftime, while %-d will not
     fframe = testing.get_test_fframe()
 
     result = fframe.format_dates()[:4]
@@ -141,6 +143,7 @@ def test_format_dates():
 
 
 if __name__ == "__main__":
+    blah()
     test__format_dates()
     test_format_dates()
     test_calc_percent_change()
