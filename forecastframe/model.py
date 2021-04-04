@@ -134,7 +134,17 @@ def _get_scaling_function(func_string: str):
 
 
 def _calc_best_estimator(
-    X, y, params, estimator, scoring, splitter, cv_func, folds, n_jobs, verbose, n_iter,
+    X,
+    y,
+    params,
+    estimator,
+    scoring,
+    splitter,
+    cv_func,
+    folds,
+    n_jobs,
+    verbose,
+    n_iter,
 ):
     """
     Intermediary function shared by fit_insample_model and cross_validate_lgbm
@@ -568,8 +578,16 @@ def get_prophet_params(indicator="light"):
             "seasonality_prior_scale": [0.01, 0.1, 1.0, 10.0],
             "holidays_prior_scale": [0.1, 0.2, 0.3, 0.4, 0.5],
             "n_changepoints": [100, 150, 200],
+            "daily_seasonality": (True, False),
+            "weekly_seasonality": (True, False),
+            "yearly_seasonality": (True, False),
         },
-        "light": {"seasonality_mode": ("multiplicative", "additive"),},
+        "light": {
+            "seasonality_mode": ("multiplicative", "additive"),
+            "daily_seasonality": (True, False),
+            "weekly_seasonality": (True, False),
+            "yearly_seasonality": (True, False),
+        },
     }
 
     return param_dict[indicator]
@@ -699,7 +717,10 @@ def calc_error_metrics(
 
         for metric in ["Actuals", "Predictions"] + metrics:
             calculation_series = pd.Series(
-                function_mapping_dict[metric](actuals=actuals, predictions=predictions,)
+                function_mapping_dict[metric](
+                    actuals=actuals,
+                    predictions=predictions,
+                )
             )
 
             if replace_infinities:
@@ -898,7 +919,9 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     scaled_test[self.target] = None
 
     combined_data = pd.concat(
-        [scaled_train, scaled_test], keys=["train", "test"], axis=0,
+        [scaled_train, scaled_test],
+        keys=["train", "test"],
+        axis=0,
     )
 
     combined_data.index.names = ["_sample_name", self.datetime_column]
@@ -1288,7 +1311,8 @@ def _cross_validate_prophet(
         )
 
         train_predictions = _predict_prophet(
-            model_object=estimator_dict["best_estimator"], df=train,
+            model_object=estimator_dict["best_estimator"],
+            df=train,
         )["yhat"]
         test_predictions = _predict_prophet(
             model_object=estimator_dict["best_estimator"], df=test
@@ -1301,7 +1325,10 @@ def _cross_validate_prophet(
 
         (descaled_train_predictions, descaled_test_predictions,) = [
             self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
-            for df in [train_predictions, test_predictions,]
+            for df in [
+                train_predictions,
+                test_predictions,
+            ]
         ]
 
         train[f"predicted_{self.target}"], train[f"{self.target}"] = [
@@ -1323,7 +1350,9 @@ def _get_prophet_predictions(self, future_periods, *args, **kwargs):
 
     estimator = _fit_prophet(data=processed_df, *args, **kwargs)
     predictions = _predict_prophet(
-        model_object=estimator, future_periods=future_periods, hierarchy=self.hierarchy,
+        model_object=estimator,
+        future_periods=future_periods,
+        hierarchy=self.hierarchy,
     )
 
     output = _postprocess_prophet_names(self=self, df=predictions)
@@ -1372,7 +1401,6 @@ def cross_validate(
     folds: int = 5,
     gap: int = 0,
     splitter: object = LeaveOneGroupOut,
-    **kwargs,
 ):
     """
     Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search,
@@ -1402,7 +1430,11 @@ def cross_validate(
     modeling_function = model_mappings[model]
 
     modeling_function(
-        self=self, params=params, folds=5, gap=0, splitter=LeaveOneGroupOut, **kwargs,
+        self=self,
+        params=params,
+        folds=5,
+        gap=0,
+        splitter=LeaveOneGroupOut,
     )
 
     self.predict(
@@ -1411,7 +1443,6 @@ def cross_validate(
         **self.cross_validations[-1][
             "best_params"
         ],  # pass the best parameters found via cross-validation for the last fold
-        **kwargs,
     )
 
 
@@ -1451,7 +1482,7 @@ def _get_error_func_dict():
 def get_cross_validation_errors(self, describe=True):
     """
     Calculate the in-sample and out-of-sample error metrics for the data found in .cross_validations
-    
+
     Parameters
     ----------
     describe: bool, default True
@@ -1489,7 +1520,8 @@ def _calc_errors(self, data, describe):
 
     for metric in function_mapping_dict.keys():
         data[metric] = function_mapping_dict[metric](
-            actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
+            actuals=data[self.target],
+            predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
     if describe:
@@ -1503,7 +1535,7 @@ def _calc_errors(self, data, describe):
 def get_errors(self, describe=True):
     """
     Calculate in-sample error metrics using the predictions found in .predictions
-    
+
     Parameters
     ----------
     describe: bool, default True
