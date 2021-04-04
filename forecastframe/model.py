@@ -1181,7 +1181,7 @@ def _grid_search_prophet_params(self, training_data, param_grid, transform_dict)
             _calc_RMSE(actuals=descaled_actuals, predictions=descaled_predictions)
         )
 
-    # Find the best parameters
+    # Find the parameters that minimize RMSE
     tuning_results = pd.DataFrame(param_grid)
     tuning_results["rmse"] = rmses
 
@@ -1193,7 +1193,6 @@ def _grid_search_prophet_params(self, training_data, param_grid, transform_dict)
         "best_estimator": best_estimator,
         "best_params": best_params,
         "best_error": best_error,
-        "tuning_results": tuning_results,
     }
 
     return results
@@ -1314,7 +1313,7 @@ def _cross_validate_prophet(
             test_actuals,
         ]
 
-        self.cross_validations.append({"train": train, "test": test})
+        self.cross_validations.append({"train": train, "test": test, **estimator_dict})
 
 
 def _get_prophet_predictions(self, future_periods, *args, **kwargs):
@@ -1368,21 +1367,23 @@ def predict(
 def cross_validate(
     self,
     model="prophet",
+    future_periods=None,
     params: dict = None,
     folds: int = 5,
     gap: int = 0,
     splitter: object = LeaveOneGroupOut,
-    *args,
     **kwargs,
 ):
     """
     Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search,
-    and creates out-of-sample predictions for analysis.
+    and creates out-of-sample predictions for analysis. When finished, this function calls .predict to load your object with predictions using the modeling object from your last fold
 
     Parameters
     ----------
     model : dict, default "prophet"
         The type of modeling algorithm to use.
+     future_periods: int, default None
+        The number of periods forward to predict. If None, returns in-sample predictions using training dataframe
     params : dict, default None
         A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
     splitter : object, default LeaveOneGroupOut
@@ -1401,12 +1402,15 @@ def cross_validate(
     modeling_function = model_mappings[model]
 
     modeling_function(
-        self=self,
-        params=params,
-        folds=5,
-        gap=0,
-        splitter=LeaveOneGroupOut,
-        *args,
+        self=self, params=params, folds=5, gap=0, splitter=LeaveOneGroupOut, **kwargs,
+    )
+
+    self.predict(
+        model=model,
+        future_periods=future_periods,
+        **self.cross_validations[-1][
+            "best_params"
+        ],  # pass the best parameters found via cross-validation for the last fold
         **kwargs,
     )
 
@@ -1462,7 +1466,7 @@ def get_cross_validation_errors(self, describe=True):
 
     result_list = []
 
-    for fold in self.cross_validations():
+    for fold in self.cross_validations:
         train, test = fold["train"], fold["test"]
         result_list.append(
             {
@@ -1481,6 +1485,8 @@ def _calc_errors(self, data, describe):
 
     function_mapping_dict = _get_error_func_dict()
 
+    data = data.copy(deep=True)
+
     for metric in function_mapping_dict.keys():
         data[metric] = function_mapping_dict[metric](
             actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
@@ -1489,7 +1495,7 @@ def _calc_errors(self, data, describe):
     if describe:
         # filter out rows where we're missing actuals
         data = data[~data[self.target].isnull()]
-        data.describe()
+        data = data.describe()
 
     return data[function_mapping_dict.keys()]
 
