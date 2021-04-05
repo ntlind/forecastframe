@@ -1422,6 +1422,7 @@ def cross_validate(
     gap : int, default 0
         Number of periods to skip in between test and training folds.
     """
+
     model_mappings = {"prophet": _cross_validate_prophet}
     assert (
         model in model_mappings.keys()
@@ -1432,7 +1433,7 @@ def cross_validate(
     modeling_function(
         self=self,
         params=params,
-        folds=5,
+        folds=folds,
         gap=0,
         splitter=LeaveOneGroupOut,
     )
