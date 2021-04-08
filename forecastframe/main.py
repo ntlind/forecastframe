@@ -51,6 +51,7 @@ class ForecastFrame:
 
         self.predictions = None
         self.cross_validations = []
+        self.date_format = None
 
     def _set_data(self, df):
         """Check user-specified hierarchy to be sure it's the primary key"""
@@ -135,7 +136,7 @@ class ForecastFrame:
     from forecastframe.interpret import (
         plot_predictions_over_time,
         plot_fold_distributions,
-        summarize_fit,
+        summarize_cv_fit,
         summarize_performance_over_time,
         summarize_shap,
         calc_shap_values,

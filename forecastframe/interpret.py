@@ -94,10 +94,10 @@ def plot_fold_distributions(
     Parameters
     ----------
     groupers : list, default None
-        If a list of groupers is passed, it will calculate error metrics for a given 
+        If a list of groupers is passed, it will calculate error metrics for a given
         set of aggregated predictions stored in processed_outputs.
     error_type : str, default "RMSE"
-        The error metric you'd like to plot by fold. Should be one of "APE", 
+        The error metric you'd like to plot by fold. Should be one of "APE",
         "AE", "RMSE", or "SE".
     height : int, default 75
         The height of the altair plot to be shown
@@ -139,7 +139,10 @@ def _plot_boxplot(
             x=alt.Column("variable:O", title=x_axis_title),
             y=alt.Column("value:Q", title=y_axis_title),
             color=alt.Column(
-                "variable:O", title="", legend=None, scale=alt.Scale(scheme=scheme),
+                "variable:O",
+                title="",
+                legend=None,
+                scale=alt.Scale(scheme=scheme),
             ),
         )
         .properties(height=height, width=width)
@@ -165,7 +168,10 @@ def _plot_melted_boxplot(
             y=alt.Column("variable:O", title=y_axis_title),
             x=alt.Column("value:Q", title=x_axis_title),
             color=alt.Column(
-                "group:O", title="", legend=None, scale=alt.Scale(scheme=scheme),
+                "group:O",
+                title="",
+                legend=None,
+                scale=alt.Scale(scheme=scheme),
             ),
             row=alt.Column(
                 "group",
@@ -182,7 +188,7 @@ def _plot_melted_boxplot(
 
 def plot_predictions_over_time(self, groupers=None):
     """
-    Return a dictionary showing predictions and actuals over time for both "IS" 
+    Return a dictionary showing predictions and actuals over time for both "IS"
     and "OOS".
 
     Parameters
@@ -227,7 +233,11 @@ def _plot_lineplot_over_time(data, groupers):
                 tooltip=[
                     "group:O",
                     "Label",
-                    alt.Tooltip(field="Values", format=".2f", type="quantitative",),
+                    alt.Tooltip(
+                        field="Values",
+                        format=".2f",
+                        type="quantitative",
+                    ),
                     "yearmonthdate(Date)",
                 ],
             )
@@ -249,7 +259,11 @@ def _plot_lineplot_over_time(data, groupers):
                 strokeDash="Label",
                 tooltip=[
                     "Label",
-                    alt.Tooltip(field="Values", format=".2f", type="quantitative",),
+                    alt.Tooltip(
+                        field="Values",
+                        format=".2f",
+                        type="quantitative",
+                    ),
                     "yearmonthdate(Date)",
                 ],
             )
@@ -315,7 +329,7 @@ def summarize_performance_over_time(self, error_type="APE", period="month"):
     Parameters
     ----------
     error_type : str, default "RMSE"
-        The error metric you'd like to plot by fold. Should be one of "APE", 
+        The error metric you'd like to plot by fold. Should be one of "APE",
         "AE", "RMSE", or "SE".
 
     TODO period not implemented
@@ -356,7 +370,8 @@ def summarize_performance_over_time(self, error_type="APE", period="month"):
             self.target,
         ].sum()
         sum_target_last_month = self.data.loc[
-            (self.data.index >= last_month) & (self.data.index <= today), self.target,
+            (self.data.index >= last_month) & (self.data.index <= today),
+            self.target,
         ].sum()
         target_growth_prior_month = _calc_percent_change(
             sum_target_last_month, sum_target_two_months_ago
@@ -374,116 +389,14 @@ def summarize_performance_over_time(self, error_type="APE", period="month"):
         summary = f"**Trends**: Sales {growth_sign} by {target_growth_prior_month} last month, {diff_sign} {yoy_growth} over the previous year. We expect sales to continue trending upwards in the coming month."
         return summary
 
-    output = "\n\n".join([_get_target_trends(self), _get_seasonality_summary(self),])
-
-    return output
-
-
-def summarize_fit(self, error_type="APE"):
-    """
-    Summarize the findings of our k-fold cross-validation
-
-    Parameters
-    ----------
-    error_type : str, default "RMSE"
-        The error metric you'd like to plot by fold. Should be one of "APE", 
-        "AE", "RMSE", or "SE".
-  
-    TODO need to make format_percentage conditional on APE
-    """
-
-    def _get_oos_performance(oos_error, error_type=error_type):
-        return {"best": "strong", "good": "solid", "bad": "poor", "worst": "poor",}[
-            _score_oos_error(oos_error, error_type)
+    output = "\n\n".join(
+        [
+            _get_target_trends(self),
+            _get_seasonality_summary(self),
         ]
-
-    def _get_diff_performance(difference, error_type=error_type):
-        return {
-            "best": "minimal",
-            "good": "minor",
-            "bad": "significant",
-            "worst": "significant",
-        }[_score_oos_is_difference(difference, error_type)]
-
-    def _get_fit_summary(difference, error_type):
-
-        score = _score_oos_is_difference(value=difference, error_type=error_type)
-
-        explainations = {
-            "best": "tuned correctly",
-            "good": "tuned correctly, with a slight hint of overfitting",
-            "bad": "overfitting our training data",
-            "worst": "significantly overfitting our training data",
-        }
-
-        return explainations[score]
-
-    def _get_next_steps(OOS_error, difference, error_type):
-        def _get_explaination(oos_performance, diff_performance, recommendation):
-            return f"Given your {oos_performance} out-of-sample performance and the {diff_performance} difference between your in-sample and out-of-sample results, we {recommendation}"
-
-        oos_performance = _get_oos_performance(oos_error)
-        diff_performance = _get_diff_performance(difference)
-
-        overfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Make sure that you're using a representative out-of-sample set when modeling \n - Add noise or reduce the dimensionality of your feature set prior to modeling \n - Reduce the number of features you're feeding into your model \n - Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`"""
-        underfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Add new features or modifying existing features based on insights from feature importance analysis \n - Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)"""
-
-        if oos_performance == "poor":
-            recommendation = f"would recommend making drastic improvements to your approach to control for underfitting. {underfitting_tips}"
-        elif diff_performance == "significant":
-            recommendation = f"would recommend making drastic improvements to your approach to control for overfitting. {overfitting_tips}"
-        elif oos_performance != "strong" & diff_performance != "minimal":
-            recommendation = f"would recommend controlling for overfitting, then going back and working on your underfitting. {overfitting_tips}"
-        elif oos_performance == "strong" & diff_performance != "minimal":
-            recommendation = f"would recommend making a few minor improvements to control for overfitting. {overfitting_tips}"
-        elif oos_performance != "strong" & diff_performance == "minimal":
-            recommendation = f"would recommend making a few minor improvements to control for underfitting. {underfitting_tips}"
-        else:
-            recommendation = "wouldn't recommend any changes to your modeling process at this time. Nice job!"
-
-        return _get_explaination(
-            oos_performance=oos_performance,
-            diff_performance=diff_performance,
-            recommendation=recommendation,
-        )
-
-    if "fold_errors" not in dir(self):
-        self.calc_all_error_metrics(groupers=None)
-
-    max_fold = _get_max_fold(self)
-
-    _check_error_input(error_type)
-
-    error_translation = _translate_error(error_type)
-
-    is_series, is_actuals = [
-        self.fold_errors[max_fold]["In-Sample " + indicator]
-        for indicator in [error_type, "Actuals"]
-    ]
-    oos_series, oos_actuals = [
-        self.fold_errors[max_fold]["Out-of-Sample " + indicator]
-        for indicator in [error_type, "Actuals"]
-    ]
-
-    is_error, oos_error = [series.median() for series in [is_series, oos_series]]
-    differential = abs(oos_error - is_error)
-
-    weighted_is_error = _calc_weighted_average(values=is_series, weights=is_actuals)
-    weighted_oos_error = _calc_weighted_average(values=oos_series, weights=oos_actuals)
-
-    fit_summary = _get_fit_summary(differential, error_type=error_type)
-    next_steps = _get_next_steps(
-        OOS_error=oos_error, difference=differential, error_type=error_type
     )
 
-    summary = f"""**Performance**: For our last fold, our model achieved a median {_format_percentage(is_error)} in-sample {error_translation} and {_format_percentage(oos_error)} out-of-sample {error_translation}. On a weighted average basis, our model achieved a {_format_percentage(weighted_is_error)} in-sample error and a {_format_percentage(weighted_oos_error)} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {"larger" if weighted_oos_error < oos_error else "smaller"} values. \n \n **Fit**: The {_format_percentage(differential)} error differential between our out-of-sample and in-sample results suggests that our model is {fit_summary}. {next_steps}"""
-
-    # append performance alert
-    self.alerts[
-        "performance"
-    ] = f"Forecasting performance was {_get_oos_performance(oos_error)}, with an out-of-sample error of {_format_percentage(oos_error)} and an in-sample error of {_format_percentage(is_error)}"
-
-    return summary
+    return output
 
 
 ## SHAP
@@ -547,7 +460,7 @@ def plot_shap_importance(self, show=True, *args, **kwargs):
 
     Additional Params
     -------------
-    plot_type : str, default = "dot", 
+    plot_type : str, default = "dot",
         What type of summary plot to produce. Note that "compact_dot" is only used for SHAP interaction values. Options are "dot" (default for single output), "bar" (default for multi-output), "violin", or "compact_dot".
     """
     explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
@@ -641,3 +554,182 @@ def plot_components(self, *args, **kwargs):
     ), "This method only works with Prophet modeling objects."
 
     return estimator.plot_components(fcst=forecast, *args, **kwargs)
+
+
+def _format_perc(percentage):
+    return "{:.2%}".format(percentage)
+
+
+def _summarize_cv_errors(
+    cv_errors,
+    function=_calc_weighted_average,
+    fold=-1,
+    metric="Absolute Percent Error",
+):
+    """
+    Return a dictionary containing summarized in-sample and out-of-sample metrics for a given fold
+    """
+    if function == _calc_weighted_average:
+        summarized_errors = {
+            key: function(values=value[metric], weights=value["Actuals"])
+            for key, value in cv_errors[fold].items()
+        }
+    else:
+        # Can also handle simple summary_functions, like pd.DataFrame.mean
+        summarized_errors = {
+            key: function(value[metric]) for key, value in cv_errors[fold].items()
+        }
+
+    return summarized_errors
+
+
+def summarize_cv_fit(self):
+    """
+    Summarize the fit of your fframe using a paragraph of automatically-generated text based on your out-of-sample error results.
+    """
+
+    def _get_threshold_dict():
+        """
+        Return a threshold dictionary used to map absolute percent errors to qualitative scores
+        """
+        from collections import OrderedDict
+
+        return OrderedDict({"best": 0.10, "good": 0.15, "bad": 0.25, "worst": 1})
+
+    def _score_absolute_percent_error(value):
+        """Qualitatively score an absolute percent error metric"""
+
+        threshold_dict = _get_threshold_dict()
+
+        for key, threshold in threshold_dict.items():
+            if value <= threshold:
+                return key
+
+    def _get_performance_summary():
+        return f"Performance: For our last fold, our model achieved a median {is_median} in-sample {metric} and a {oos_median} out-of-sample {metric}. On a weighted average basis, our model achieved a {is_weighted_average} in-sample error and a {oos_weighted_average} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {skew} values of our `{self.target}` variable."
+
+    def _get_fit_summary():
+
+        explainations = {
+            "best": "tuned correctly",
+            "good": "tuned correctly, with a slight hint of overfitting",
+            "bad": "overfitting our training data",
+            "worst": "significantly overfitting our training data",
+        }
+
+        return (
+            f"Fit: The {perc_difference} error differential between our out-of-sample and in-sample results suggests that our model is {explainations[difference_score]}."
+            ""
+        )
+
+    def _get_next_step_summary():
+
+        overfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Make sure that you're using a representative out-of-sample set when modeling \n - Add noise or reduce the dimensionality of your feature set prior to modeling \n - Reduce the number of features you're feeding into your model \n - Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`"""
+        underfitting_tips = """Here are a few tips to control for underfitting: \n - Add more training data and/or resample your existing data \n - Add new features or modifying existing features based on insights from feature importance analysis \n - Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)"""
+
+        score_list = _get_threshold_dict().keys()
+        not_best_conditions = score_list - ["best"]
+        bad_conditions = score_list - ["best", "good"]
+
+        # Build recommendation dictionary step-by-step, using oos_median and differnece_score as our keys
+        # We're going to update keys at each step, where updates further down our code will overwrite earlier updates
+        recommendation_dict = {}
+
+        # oos_median == best & difference_score == best
+        recommendation_dict.update(
+            {
+                (
+                    "best",
+                    "best",
+                ): "wouldn't recommend any changes to your modeling process at this time. Nice job!"
+            }
+        )
+
+        # oos_median != best & difference_score == best
+        recommendation_dict.update(
+            {
+                (
+                    score,
+                    "best",
+                ): f"would recommend making a few minor improvements to control for underfitting. {underfitting_tips}"
+                for score in not_best_conditions
+            }
+        )
+
+        # oos_median == best & difference_score != best
+        recommendation_dict.update(
+            {
+                (
+                    "best",
+                    difference,
+                ): f"would recommend making a few minor improvements to control for overfitting. {overfitting_tips}"
+                for difference in not_best_conditions
+            }
+        )
+
+        # oos_median != best & difference_score != best
+        recommendation_dict.update(
+            {
+                (
+                    score,
+                    difference,
+                ): f"would recommend controlling for overfitting, then going back and working on your underfitting. {overfitting_tips}"
+                for score in not_best_conditions
+                for difference in not_best_conditions
+            }
+        )
+
+        # difference_score == poor or worst
+        recommendation_dict.update(
+            {
+                (
+                    score,
+                    difference,
+                ): f"would recommend making drastic improvements to your approach to control for overfitting. {overfitting_tips}"
+                for score in score_list
+                for difference in bad_conditions
+            }
+        )
+
+        # oos_median == poor or worst
+        recommendation_dict.update(
+            {
+                (
+                    score,
+                    difference,
+                ): f"would recommend making drastic improvements to your approach to control for underfitting. {underfitting_tips}"
+                for score in bad_conditions
+                for difference in score_list
+            }
+        )
+
+        recommendation = recommendation_dict[(oos_score, difference_score)]
+
+        return f"Given your {oos_median} out-of-sample performance and the {perc_difference} difference between your in-sample and out-of-sample results, we {recommendation}"
+
+    metric = "Absolute Percent Error"
+
+    cv_errors = self.get_cross_validation_errors(describe=False)
+
+    weighted_averages = _summarize_cv_errors(cv_errors=cv_errors, metric=metric)
+    oos_weighted_average = _format_perc(weighted_averages["Out-of-Sample"])
+    is_weighted_average = _format_perc(weighted_averages["In-Sample"])
+
+    medians = _summarize_cv_errors(
+        cv_errors=cv_errors, metric=metric, function=pd.DataFrame.median
+    )
+    oos_median = _format_perc(medians["Out-of-Sample"])
+    is_median = _format_perc(medians["In-Sample"])
+    oos_score = _score_absolute_percent_error(value=medians["Out-of-Sample"])
+
+    difference = abs(medians["Out-of-Sample"] - medians["In-Sample"])
+    difference_score = _score_absolute_percent_error(value=difference)
+    perc_difference = _format_perc(difference)
+
+    skew = "larger" if oos_weighted_average < oos_median else "smaller"
+
+    performance_summary = _get_performance_summary()
+    fit_summary = _get_fit_summary()
+    next_steps_summary = _get_next_step_summary()
+
+    return f"""{performance_summary} \n\n {fit_summary} {next_steps_summary}"""

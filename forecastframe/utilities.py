@@ -155,7 +155,10 @@ def _join_new_columns(self, groupby_df, attribute, index=None):
     join_columns = index + [self.datetime_column]
 
     data.drop(
-        groupby_df, inplace=True, axis=1, errors="ignore",
+        groupby_df,
+        inplace=True,
+        axis=1,
+        errors="ignore",
     )
 
     return data.merge(groupby_df, how="left", on=join_columns)
@@ -395,8 +398,9 @@ def _format_dates(date_series):
 
     # Find which key the median difference is closest to
     lookup_key = min(date_dict.keys(), key=lambda x: abs(x - median_diff))
+    date_format = date_dict[lookup_key]
 
-    return list(date_series.strftime(date_dict[lookup_key]))
+    return [date_format, list(date_series.strftime(date_format))]
 
 
 def format_dates(self):
@@ -404,9 +408,12 @@ def format_dates(self):
     Prints a pretty version of the fframe's dateindex as a list of strings
     """
     if self.predictions is not None:
-        return _format_dates(self.predictions.index)
+        date_format, values = _format_dates(self.predictions.index)
+    else:
+        date_format, values = _format_dates(self.data.index)
 
-    return _format_dates(self.data.index)
+    self.date_format = date_format
+    return values
 
 
 def _get_processed_outputs(self, sample, groupers=None, fold=None):
