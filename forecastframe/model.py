@@ -134,7 +134,17 @@ def _get_scaling_function(func_string: str):
 
 
 def _calc_best_estimator(
-    X, y, params, estimator, scoring, splitter, cv_func, folds, n_jobs, verbose, n_iter,
+    X,
+    y,
+    params,
+    estimator,
+    scoring,
+    splitter,
+    cv_func,
+    folds,
+    n_jobs,
+    verbose,
+    n_iter,
 ):
     """
     Intermediary function shared by fit_insample_model and cross_validate_lgbm
@@ -707,7 +717,10 @@ def calc_error_metrics(
 
         for metric in ["Actuals", "Predictions"] + metrics:
             calculation_series = pd.Series(
-                function_mapping_dict[metric](actuals=actuals, predictions=predictions,)
+                function_mapping_dict[metric](
+                    actuals=actuals,
+                    predictions=predictions,
+                )
             )
 
             if replace_infinities:
@@ -906,7 +919,9 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     scaled_test[self.target] = None
 
     combined_data = pd.concat(
-        [scaled_train, scaled_test], keys=["train", "test"], axis=0,
+        [scaled_train, scaled_test],
+        keys=["train", "test"],
+        axis=0,
     )
 
     combined_data.index.names = ["_sample_name", self.datetime_column]
@@ -1296,7 +1311,8 @@ def _cross_validate_prophet(
         )
 
         train_predictions = _predict_prophet(
-            model_object=estimator_dict["best_estimator"], df=train,
+            model_object=estimator_dict["best_estimator"],
+            df=train,
         )["yhat"]
         test_predictions = _predict_prophet(
             model_object=estimator_dict["best_estimator"], df=test
@@ -1309,7 +1325,10 @@ def _cross_validate_prophet(
 
         (descaled_train_predictions, descaled_test_predictions,) = [
             self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
-            for df in [train_predictions, test_predictions,]
+            for df in [
+                train_predictions,
+                test_predictions,
+            ]
         ]
 
         train[f"predicted_{self.target}"], train[f"{self.target}"] = [
@@ -1331,7 +1350,9 @@ def _get_prophet_predictions(self, future_periods, *args, **kwargs):
 
     estimator = _fit_prophet(data=processed_df, *args, **kwargs)
     predictions = _predict_prophet(
-        model_object=estimator, future_periods=future_periods, hierarchy=self.hierarchy,
+        model_object=estimator,
+        future_periods=future_periods,
+        hierarchy=self.hierarchy,
     )
 
     output = _postprocess_prophet_names(self=self, df=predictions)
@@ -1389,17 +1410,16 @@ def cross_validate(
     ----------
     model : dict, default "prophet"
         The type of modeling algorithm to use.
-     future_periods: int, default None
+    future_periods: int, default None
         The number of periods forward to predict. If None, returns in-sample predictions using training dataframe
     params : dict, default None
         A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
-    splitter : object, default LeaveOneGroupOut
-        The strategy that sklearn uses to split your cross-validation set. Defaults to
-        LeaveOneGroupOut.
     folds : int, default 5
         Number of folds to use during cross-valdation
     gap : int, default 0
         Number of periods to skip in between test and training folds.
+    splitter : object, default LeaveOneGroupOut
+        The strategy that sklearn uses to split your cross-validation set. Defaults to sklearn's LeaveOneGroupOut.
     """
 
     model_mappings = {"prophet": _cross_validate_prophet}
@@ -1410,7 +1430,11 @@ def cross_validate(
     modeling_function = model_mappings[model]
 
     modeling_function(
-        self=self, params=params, folds=folds, gap=0, splitter=LeaveOneGroupOut,
+        self=self,
+        params=params,
+        folds=folds,
+        gap=0,
+        splitter=LeaveOneGroupOut,
     )
 
     self.predict(
@@ -1496,7 +1520,8 @@ def _calc_errors(self, data, describe):
 
     for metric in function_mapping_dict.keys():
         data[metric] = function_mapping_dict[metric](
-            actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
+            actuals=data[self.target],
+            predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
     if describe:
