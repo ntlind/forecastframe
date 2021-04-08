@@ -136,7 +136,7 @@ class ForecastFrame:
     from forecastframe.interpret import (
         plot_predictions_over_time,
         plot_fold_distributions,
-        summarize_cv_fit,
+        summarize_cv,
         summarize_performance_over_time,
         summarize_shap,
         calc_shap_values,

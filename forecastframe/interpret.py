@@ -583,7 +583,7 @@ def _summarize_cv_errors(
     return summarized_errors
 
 
-def summarize_cv_fit(self):
+def summarize_cv(self):
     """
     Summarize the fit of your fframe using a paragraph of automatically-generated text based on your out-of-sample error results.
     """
@@ -605,27 +605,49 @@ def summarize_cv_fit(self):
             if value <= threshold:
                 return key
 
+    def _get_key_stats():
+        return f"""
+        <b>In-Sample {metric}</b>:
+        <br />• Median: {_format_perc(is_median)}
+        <br />• Weighted Average: {_format_perc(is_weighted_average)}
+        <br />• Difference: {_format_perc((is_median-is_weighted_average))} ({is_skew} skew)
+        <br /><br />
+
+        <b>Out-of-Sample {metric}</b>:
+                <br />• Median: {_format_perc(oos_median)}
+                <br />• Weighted Average: {_format_perc(oos_weighted_average)}
+                <br />• Difference: {_format_perc((oos_median-oos_weighted_average))} ({oos_skew} skew)
+                <br /><br />
+        """
+
     def _get_performance_summary():
-        return f"Performance: For our last fold, our model achieved a median {is_median} in-sample {metric} and a {oos_median} out-of-sample {metric}. On a weighted average basis, our model achieved a {is_weighted_average} in-sample error and a {oos_weighted_average} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {skew} values of our `{self.target}` variable."
+        return f"For our last fold, our model achieved a median {_format_perc(is_median)} in-sample {metric} and a {_format_perc(oos_median)} out-of-sample {metric}. On a weighted average basis, our model achieved a {_format_perc(is_weighted_average)} in-sample error and a {_format_perc(oos_weighted_average)} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {oos_skew} values of our `{self.target}` variable."
 
     def _get_fit_summary():
 
         explainations = {
-            "best": "tuned correctly",
-            "good": "tuned correctly, with a slight hint of overfitting",
+            "best": "well-tuned",
+            "good": "well-tuned, with a slight hint of overfitting",
             "bad": "overfitting our training data",
             "worst": "significantly overfitting our training data",
         }
 
-        return (
-            f"Fit: The {perc_difference} error differential between our out-of-sample and in-sample results suggests that our model is {explainations[difference_score]}."
-            ""
-        )
+        return f"The {_format_perc(difference)} error differential between our out-of-sample and in-sample results suggests that <b>our model is {explainations[difference_score]}</b>."
 
     def _get_next_step_summary():
 
-        overfitting_tips = """Here are a few tips to control for overfitting: \n - Add more training data and/or resample your existing data \n - Make sure that you're using a representative out-of-sample set when modeling \n - Add noise or reduce the dimensionality of your feature set prior to modeling \n - Reduce the number of features you're feeding into your model \n - Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`"""
-        underfitting_tips = """Here are a few tips to control for underfitting: \n - Add more training data and/or resample your existing data \n - Add new features or modifying existing features based on insights from feature importance analysis \n - Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)"""
+        overfitting_tips = """
+            <br /> • Add more training data and/or resample your existing data 
+            <br /> • Make sure that you're using a representative out-of-sample set when modeling 
+            <br /> • Add noise or reduce the dimensionality of your feature set prior to modeling 
+            <br /> • Reduce the number of features you're feeding into your model 
+            <br /> • Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`
+            """
+
+        underfitting_tips = """
+            <br /> • Add more training data and/or resample your existing data 
+            <br /> • Add new features or modifying existing features based on insights from feature importance analysis 
+            <br /> • Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)"""
 
         score_list = _get_threshold_dict().keys()
         not_best_conditions = score_list - ["best"]
@@ -651,7 +673,7 @@ def summarize_cv_fit(self):
                 (
                     score,
                     "best",
-                ): f"would recommend making a few minor improvements to control for underfitting. {underfitting_tips}"
+                ): f"would recommend making a few minor improvements to control for underfitting: {underfitting_tips}"
                 for score in not_best_conditions
             }
         )
@@ -662,7 +684,7 @@ def summarize_cv_fit(self):
                 (
                     "best",
                     difference,
-                ): f"would recommend making a few minor improvements to control for overfitting. {overfitting_tips}"
+                ): f"would recommend making a few minor improvements to control for overfitting: {overfitting_tips}"
                 for difference in not_best_conditions
             }
         )
@@ -673,7 +695,7 @@ def summarize_cv_fit(self):
                 (
                     score,
                     difference,
-                ): f"would recommend controlling for overfitting, then going back and working on your underfitting. {overfitting_tips}"
+                ): f"would recommend controlling for overfitting, then going back and working on your underfitting: {overfitting_tips}"
                 for score in not_best_conditions
                 for difference in not_best_conditions
             }
@@ -685,7 +707,7 @@ def summarize_cv_fit(self):
                 (
                     score,
                     difference,
-                ): f"would recommend making drastic improvements to your approach to control for overfitting. {overfitting_tips}"
+                ): f"would recommend making drastic improvements to your approach to control for overfitting: {overfitting_tips}"
                 for score in score_list
                 for difference in bad_conditions
             }
@@ -705,31 +727,39 @@ def summarize_cv_fit(self):
 
         recommendation = recommendation_dict[(oos_score, difference_score)]
 
-        return f"Given your {oos_median} out-of-sample performance and the {perc_difference} difference between your in-sample and out-of-sample results, we {recommendation}"
+        return f"Given this differential and our {_format_perc(oos_median)} out-of-sample {metric}, we {recommendation}"
 
     metric = "Absolute Percent Error"
 
     cv_errors = self.get_cross_validation_errors(describe=False)
 
+    # Weighted averages
     weighted_averages = _summarize_cv_errors(cv_errors=cv_errors, metric=metric)
-    oos_weighted_average = _format_perc(weighted_averages["Out-of-Sample"])
-    is_weighted_average = _format_perc(weighted_averages["In-Sample"])
+    oos_weighted_average = weighted_averages["Out-of-Sample"]
+    is_weighted_average = weighted_averages["In-Sample"]
 
+    # Medians
     medians = _summarize_cv_errors(
         cv_errors=cv_errors, metric=metric, function=pd.DataFrame.median
     )
-    oos_median = _format_perc(medians["Out-of-Sample"])
-    is_median = _format_perc(medians["In-Sample"])
-    oos_score = _score_absolute_percent_error(value=medians["Out-of-Sample"])
+    oos_median = medians["Out-of-Sample"]
+    is_median = medians["In-Sample"]
 
-    difference = abs(medians["Out-of-Sample"] - medians["In-Sample"])
+    # Score and skew
+    oos_score = _score_absolute_percent_error(value=oos_median)
+    is_skew = "left-tailed" if is_weighted_average < is_median else "right-tailed"
+    oos_skew = "left-tailed" if oos_weighted_average < oos_median else "right-tailed"
+
+    difference = abs(oos_median - is_median)
     difference_score = _score_absolute_percent_error(value=difference)
-    perc_difference = _format_perc(difference)
 
-    skew = "larger" if oos_weighted_average < oos_median else "smaller"
-
+    key_stats = _get_key_stats()
     performance_summary = _get_performance_summary()
     fit_summary = _get_fit_summary()
     next_steps_summary = _get_next_step_summary()
 
-    return f"""{performance_summary} \n\n {fit_summary} {next_steps_summary}"""
+    return {
+        "key_stats": key_stats,
+        "performance": performance_summary,
+        "recommendation": f"{fit_summary} {next_steps_summary}",
+    }
