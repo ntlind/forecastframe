@@ -634,20 +634,25 @@ def summarize_cv(self):
 
         return f"The {_format_perc(difference)} error differential between our out-of-sample and in-sample results suggests that <b>our model is {explainations[difference_score]}</b>."
 
-    def _get_next_step_summary():
+    def _get_recommendation_summary():
 
         overfitting_tips = """
-            <br /> • Add more training data and/or resample your existing data 
-            <br /> • Make sure that you're using a representative out-of-sample set when modeling 
-            <br /> • Add noise or reduce the dimensionality of your feature set prior to modeling 
-            <br /> • Reduce the number of features you're feeding into your model 
-            <br /> • Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`
+            <ul>
+                <li> Add more training data and/or resample your existing data </li>
+                <li> Make sure that you're using a representative out-of-sample set when modeling </li>
+                <li> Add noise or reduce the dimensionality of your feature set prior to modeling</li> 
+                <li> Reduce the number of features you're feeding into your model </li>
+                <li> Regularize your model using parameters like `lambda_l1`, `lambda_l2`,  `min_gain_to_split`, and `num_iterations`</li>
+            </ul>
             """
 
         underfitting_tips = """
-            <br /> • Add more training data and/or resample your existing data 
-            <br /> • Add new features or modifying existing features based on insights from feature importance analysis 
-            <br /> • Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)"""
+            <ul>
+                <li> Add more training data and/or resample your existing data</li>
+                <li> Add new features or modifying existing features based on insights from feature importance analysis</li> 
+                <li> Reduce or eliminate regularization (e.g., decrease lambda, reduce dropout, etc.)</li>
+            </ul>    
+            """
 
         score_list = _get_threshold_dict().keys()
         not_best_conditions = score_list - ["best"]
@@ -663,7 +668,7 @@ def summarize_cv(self):
                 (
                     "best",
                     "best",
-                ): "wouldn't recommend any changes to your modeling process at this time. Nice job!"
+                ): "We <b>wouldn't recommend any changes</b> to your modeling process at this time. Nice job!"
             }
         )
 
@@ -673,7 +678,7 @@ def summarize_cv(self):
                 (
                     score,
                     "best",
-                ): f"would recommend making a few minor improvements to control for underfitting: {underfitting_tips}"
+                ): f"We <b>recommend making a few minor improvements</b> to control for underfitting: {underfitting_tips}"
                 for score in not_best_conditions
             }
         )
@@ -684,7 +689,7 @@ def summarize_cv(self):
                 (
                     "best",
                     difference,
-                ): f"would recommend making a few minor improvements to control for overfitting: {overfitting_tips}"
+                ): f"We <b>recommend making a few minor improvements</b> to control for overfitting: {overfitting_tips}"
                 for difference in not_best_conditions
             }
         )
@@ -695,7 +700,7 @@ def summarize_cv(self):
                 (
                     score,
                     difference,
-                ): f"would recommend controlling for overfitting, then going back and working on your underfitting: {overfitting_tips}"
+                ): f"We <b>recommend controlling for overfitting</b>, then going back and working on your underfitting: {overfitting_tips}"
                 for score in not_best_conditions
                 for difference in not_best_conditions
             }
@@ -707,7 +712,7 @@ def summarize_cv(self):
                 (
                     score,
                     difference,
-                ): f"would recommend making drastic improvements to your approach to control for overfitting: {overfitting_tips}"
+                ): f"We <b>recommend making drastic improvements</b> to your approach to control for overfitting: {overfitting_tips}"
                 for score in score_list
                 for difference in bad_conditions
             }
@@ -719,15 +724,13 @@ def summarize_cv(self):
                 (
                     score,
                     difference,
-                ): f"would recommend making drastic improvements to your approach to control for underfitting. {underfitting_tips}"
+                ): f"We <b>recommend making drastic improvements</b> to your approach to control for underfitting. {underfitting_tips}"
                 for score in bad_conditions
                 for difference in score_list
             }
         )
 
-        recommendation = recommendation_dict[(oos_score, difference_score)]
-
-        return f"We {recommendation}"
+        return recommendation_dict[(oos_score, difference_score)]
 
     metric = "Absolute Percent Error"
 
@@ -756,10 +759,11 @@ def summarize_cv(self):
     key_stats = _get_key_stats()
     performance_summary = _get_performance_summary()
     fit_summary = _get_fit_summary()
-    next_steps_summary = _get_next_step_summary()
+    recommendation_summary = _get_recommendation_summary()
 
     return {
+        "score": oos_score,
         "key_stats": key_stats,
         "performance": performance_summary,
-        "recommendation": f"{fit_summary} {next_steps_summary}",
+        "recommendation": recommendation_summary,
     }
