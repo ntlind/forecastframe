@@ -329,7 +329,7 @@ def predict_lgbm(self, predict_df):
     engineered_df = self._run_feature_engineering(scaled_df)
 
     predictions = pd.Series(
-        fframe.results["best_estimator"].predict(predict_df),
+        self.results["best_estimator"].predict(predict_df),
         index=predict_df[self.datetime_column],
     )
 

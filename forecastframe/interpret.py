@@ -727,7 +727,7 @@ def summarize_cv(self):
 
         recommendation = recommendation_dict[(oos_score, difference_score)]
 
-        return f"Given this differential and our {_format_perc(oos_median)} out-of-sample {metric}, we {recommendation}"
+        return f"We {recommendation}"
 
     metric = "Absolute Percent Error"
 
