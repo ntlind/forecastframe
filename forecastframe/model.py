@@ -324,7 +324,7 @@ def predict_lgbm(self, predict_df):
 
     assert set(predict_df.columns).issubset(set(self.data.columns))
 
-    scaled_df, transform_dict = self._run_scaler_pipeline([predict_df])
+    scaled_df, transform_dict = self._run_scaler_pipeline(predict_df)
 
     engineered_df = self._run_feature_engineering(scaled_df)
 
@@ -661,6 +661,20 @@ def _calc_RMSE(actuals: np.array, predictions: np.array, weights=None):
     )[0]
 
 
+def _calc_error_metric(
+    actuals: np.array, predictions: np.array, error_function=_calc_RMSE, **kwargs
+):
+    """
+    Wrapper function that's meant to be used instead of directly calling _calc_RMSE, _calc_MSE< etc.
+    """
+    # filter out nulls from the actual and prediction arrays
+    null_mask = actuals.isnull()
+    actuals = actuals[~null_mask]
+    predictions = predictions[~null_mask]
+
+    return error_function(actuals=actuals, predictions=predictions, **kwargs)
+
+
 def calc_error_metrics(
     self,
     fold: int,
@@ -790,14 +804,14 @@ def custom_asymmetric_valid(y_pred, y_true, loss_multiplier=0.9):
     return "custom_asymmetric_eval", np.mean(loss), False
 
 
-def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False):
+def _run_scaler_pipeline(self, df: pd.DataFrame, augment_feature_list: bool = False):
     """
     Run all of the scaling functions stored in self.scalers_list
 
     Parameters
     ----------
-    df_list : List[pd.DataFrame]
-        a list of dataframes that you want to scale
+    df : pd.DataFrame
+        the dataframe that you want to scale
     augment_feature_list : bool, default True
         If true, will also scale any variables that are similiarly named to the feature
         passed to your transformation functions. Purpose is to scale derivative features.
@@ -805,36 +819,31 @@ def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False
     ----------
     A flattened list containing scaled data and scaled dict for each dataframe passed
     """
-    df_list = _ensure_is_list(df_list)
 
     if self.scalers_list:
-        transform_dict_list = []
-        for index in range(len(df_list)):
-            consolidated_transform_dict = {}
-            for scaler in self.scalers_list:
-                scaling_func, args = scaler
 
-                if augment_feature_list:
-                    columns = set(df_list[0].columns)
+        consolidated_transform_dict = {}
 
-                    args["features"] = _ensure_is_list(args["features"])
-                    features = [f"{feature}_" for feature in args["features"]]
+        for scaler in self.scalers_list:
+            scaling_func, args = scaler
 
-                    args["features"] += [
-                        col for feature in features for col in columns if feature in col
-                    ]
+            if augment_feature_list:
+                columns = set(df.columns)
 
-                df_list[index], transform_dict = scaling_func(df_list[index], **args)
-                consolidated_transform_dict.update(transform_dict)
+                args["features"] = _ensure_is_list(args["features"])
+                features = [f"{feature}_" for feature in args["features"]]
 
-            transform_dict_list.append(consolidated_transform_dict)
+                args["features"] += [
+                    col for feature in features for col in columns if feature in col
+                ]
 
-        df_list += transform_dict_list
+            df, transform_dict = scaling_func(df, **args)
+            consolidated_transform_dict.update(transform_dict)
 
-        return df_list
+        return [df, consolidated_transform_dict]
     else:
-        trasnform_dict = {}
-        return [df_list, transform_dict]
+        consolidated_transform_dict = {}
+        return [df, consolidated_transform_dict]
 
 
 def _run_ensembles(self, train, test):
@@ -1169,6 +1178,8 @@ def get_predictions(self, columns_to_keep=None):
     columns_to_keep: List[str], default ["trend", "yhat_upper", "yhat_lower", "yhat"]
         The column you'd like to keep from the output dataframe stored in self.predictions
     """
+    data = _merge_actuals(self)
+
     if not columns_to_keep:
         columns_to_keep = [
             "trend",
@@ -1207,7 +1218,11 @@ def _grid_search_prophet_params(self, training_data, param_grid, transform_dict)
         )
 
         rmses.append(
-            _calc_RMSE(actuals=descaled_actuals, predictions=descaled_predictions)
+            _calc_error_metric(
+                actuals=descaled_actuals,
+                predictions=descaled_predictions,
+                error_function=_calc_RMSE,
+            )
         )
 
     # Find the parameters that minimize RMSE

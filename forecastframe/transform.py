@@ -280,11 +280,17 @@ def _descale_target(self, array, transform_dict=None, target=None):
         )
         return _calc_denormalize(array=array, maxes=maxes, mins=mins)
 
+    if not target:
+        target = self.target
+
     if not transform_dict:
         if self.transforms:
             transform_dict = self.transforms
         else:
-            return array
+            if isinstance(array, pd.DataFrame):
+                return array[target]
+            elif isinstance(array, pd.Series):
+                return array
 
     operation_dict = {
         "log1p": _delog_features,
@@ -295,9 +301,6 @@ def _descale_target(self, array, transform_dict=None, target=None):
     for key, values in transform_dict.items():
         if self.target in values["features"]:
             if isinstance(array, pd.DataFrame):
-                if not target:
-                    target = self.target
-
                 return operation_dict[key](array[target], transform_dict)
             elif isinstance(array, pd.Series):
                 return operation_dict[key](array, transform_dict)
