@@ -807,30 +807,34 @@ def _run_scaler_pipeline(self, df_list: list, augment_feature_list: bool = False
     """
     df_list = _ensure_is_list(df_list)
 
-    transform_dict_list = []
-    for index in range(len(df_list)):
-        consolidated_transform_dict = {}
-        for scaler in self.scalers_list:
-            scaling_func, args = scaler
+    if self.scalers_list:
+        transform_dict_list = []
+        for index in range(len(df_list)):
+            consolidated_transform_dict = {}
+            for scaler in self.scalers_list:
+                scaling_func, args = scaler
 
-            if augment_feature_list:
-                columns = set(df_list[0].columns)
+                if augment_feature_list:
+                    columns = set(df_list[0].columns)
 
-                args["features"] = _ensure_is_list(args["features"])
-                features = [f"{feature}_" for feature in args["features"]]
+                    args["features"] = _ensure_is_list(args["features"])
+                    features = [f"{feature}_" for feature in args["features"]]
 
-                args["features"] += [
-                    col for feature in features for col in columns if feature in col
-                ]
+                    args["features"] += [
+                        col for feature in features for col in columns if feature in col
+                    ]
 
-            df_list[index], transform_dict = scaling_func(df_list[index], **args)
-            consolidated_transform_dict.update(transform_dict)
+                df_list[index], transform_dict = scaling_func(df_list[index], **args)
+                consolidated_transform_dict.update(transform_dict)
 
-        transform_dict_list.append(consolidated_transform_dict)
+            transform_dict_list.append(consolidated_transform_dict)
 
-    df_list += transform_dict_list
+        df_list += transform_dict_list
 
-    return df_list
+        return df_list
+    else:
+        trasnform_dict = {}
+        return [df_list, transform_dict]
 
 
 def _run_ensembles(self, train, test):
@@ -899,14 +903,13 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
 
     train, test = self.data.iloc[train_index, :], self.data.iloc[test_index, :]
 
-    if self.scalers_list:
-        scaled_train, transform_dict = self._run_scaler_pipeline(train)
+    scaled_train, transform_dict = self._run_scaler_pipeline(train)
 
+    if transform_dict:
         # apply scaling to test set since it's out-of-sample
         scaled_test = _apply_transform_dict(test, transform_dict)
     else:
-        scaled_train, scaled_test = train, test
-        transform_dict = {}
+        scaled_test = test
 
     # mask actuals in test set before feature engineering
     if self.hierarchy:
@@ -1098,6 +1101,7 @@ def _fit_prophet(data, *args, **kwargs):
         col for col in list(data.columns) if col not in ["y", "ds"]
     ]
 
+    # TODO need a test to prove this is working
     (model.add_regressor(regressor) for regressor in additional_regressors)
 
     model = model.fit(data)
@@ -1346,9 +1350,21 @@ def _cross_validate_prophet(
 def _get_prophet_predictions(self, future_periods, *args, **kwargs):
     """Helpers functions to produce prophet forecasts"""
 
-    processed_df = _preprocess_prophet_names(self=self, df=self.data)
+    def _handle_scaling_and_feature_engineering(self):
+        df = self.data.copy(deep=True)
+
+        df, transform_dict = self._run_scaler_pipeline(df)
+
+        df = self._run_feature_engineering(df)
+
+        return df, transform_dict
+
+    df, transform_dict = _handle_scaling_and_feature_engineering(self)
+
+    processed_df = _preprocess_prophet_names(self=self, df=df)
 
     estimator = _fit_prophet(data=processed_df, *args, **kwargs)
+
     predictions = _predict_prophet(
         model_object=estimator,
         future_periods=future_periods,
@@ -1357,9 +1373,13 @@ def _get_prophet_predictions(self, future_periods, *args, **kwargs):
 
     output = _postprocess_prophet_names(self=self, df=predictions)
 
+    descaled_output = self._descale_target(
+        output, transform_dict=transform_dict, target=f"predicted_{self.target}"
+    )
+
     result_dict = {"estimator": estimator}
 
-    return output, result_dict
+    return descaled_output, result_dict
 
 
 def predict(

@@ -709,6 +709,8 @@ def calc_percent_change(
         The attribute of self where your data should be pulled from and saved to.
         If set to "sample", will also add the function call to function_list for
         later processing.
+
+    # TODO this function won't work with non-hierarchical data
     """
     if attribute == "sample":
         self.function_list.append(
@@ -797,6 +799,8 @@ def calc_percent_relative_to_threshold(
         The attribute of self where your data should be pulled from and saved to.
         If set to "sample", will also add the function call to function_list for
         later processing.
+
+    #TODO this function won't work with non-hierarchical data
     """
 
     if attribute == "sample":

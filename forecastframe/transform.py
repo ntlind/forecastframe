@@ -10,7 +10,7 @@ from forecastframe import utilities
 
 def _compress(data: pd.DataFrame):
     """
-    Helper function to losslessly downcast self object and convert objects 
+    Helper function to losslessly downcast self object and convert objects
     to categories to save memory.
     """
 
@@ -64,7 +64,7 @@ def correct_negatives(self, features=None, replace_value=0):
 def compress(self, attribute: str = "data"):
     """
     Losslessly downcast self object and convert objects to categories to save memory.
-    
+
     Parameters
     ----------
     attribute : str, default "data"
@@ -106,8 +106,8 @@ def log_features(self, features: list, attribute: str = "sample"):
     features : list of strings
         The list of features that you want to transform.
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
 
@@ -149,8 +149,8 @@ def standardize_features(self, features: list, attribute: str = "sample"):
     features : list of strings
         The list of features that you want to transform.
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
 
     Notes
@@ -213,8 +213,8 @@ def normalize_features(self, features: list, attribute: str = "sample"):
     features : list of strings
         The list of features that you want to transform.
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
 
     Notes
@@ -283,9 +283,6 @@ def _descale_target(self, array, transform_dict=None, target=None):
     if not target:
         target = self.target
 
-    # allow processing of multiple targets, like if we have confidence intervals
-    target = utilities._ensure_is_list(target)
-
     if not transform_dict:
         if self.transforms:
             transform_dict = self.transforms
@@ -299,11 +296,8 @@ def _descale_target(self, array, transform_dict=None, target=None):
     }
 
     for key, values in transform_dict.items():
-        features_to_untransform = values["features"]
-
-        array[features_to_untransform] = operation_dict[key](
-            array[features_to_untransform], transform_dict
-        )
+        if self.target in values["features"]:
+            array[target] = operation_dict[key](array[target], transform_dict)
 
     return array
 
@@ -311,12 +305,12 @@ def _descale_target(self, array, transform_dict=None, target=None):
 def descale_features(self, attribute: str = "sample"):
     """
     Undo all scaling operations (logp1, standardize, normalize) from fframe.data.
-    
+
     Parameters
     ----------
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
 
@@ -427,7 +421,8 @@ def fill_time_gaps(self, *args, **kwargs):
         reverts that datetime name back to datetime_column
         """
         df.set_index(
-            [col for col in list(df.columns) if "level_" in col][0], inplace=True,
+            [col for col in list(df.columns) if "level_" in col][0],
+            inplace=True,
         )
 
         df.index.rename(self.datetime_column, inplace=True)
@@ -445,7 +440,7 @@ def fill_time_gaps(self, *args, **kwargs):
                         data[self.hierarchy].index.max(),
                     ),
                     *args,
-                    **kwargs
+                    **kwargs,
                 )
             )
             .drop(self.hierarchy, axis=1)
@@ -467,7 +462,7 @@ def fill_missings(self, method: str = "ffill", features: list = None):
     Parameters
     ----------
     method : str
-        Whether to forward-full (ffill) or backward-fill (bfill) 
+        Whether to forward-full (ffill) or backward-fill (bfill)
         the missing values within each group.
     features : list of strings, default None
         A list of all columns that you want to fill. If "None", fills all
@@ -483,4 +478,3 @@ def fill_missings(self, method: str = "ffill", features: list = None):
             features = self._get_covariates()
 
         data[features] = data.groupby(self.hierarchy)[features].transform(method).values
-
