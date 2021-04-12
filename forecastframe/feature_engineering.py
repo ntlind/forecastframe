@@ -203,29 +203,17 @@ def lag_features(self, features: list, lags: list, attribute: str = "sample"):
 
     for lag in lags:
 
-        column_names = {feature: f"{feature}_lag{lag}" for feature in features}
+        column_names = [f"{feature}_lag{lag}" for feature in features]
 
         if self.hierarchy:
-            lag_columns = (
-                data.groupby(self.hierarchy)[features]
-                .shift(lag)
-                .rename(column_names, axis=1)
-            )
-            final_output = self._join_new_columns(
-                second_df=lag_columns, attribute=attribute
-            )
-            setattr(self, attribute, final_output)
+            data[column_names] = data.groupby(self.hierarchy)[features].shift(lag)
+
+            setattr(self, attribute, data)
 
         else:
-            lag_columns = data[features].shift(lag).rename(column_names, axis=1)
+            data[column_names] = data[features].shift(lag)
 
-            assert len(lag_columns) == len(data)
-
-            final_output = self._join_new_columns(
-                second_df=lag_columns, attribute=attribute
-            )
-
-            setattr(self, attribute, final_output)
+            setattr(self, attribute, data)
 
 
 def _aggregate_features(data, fframe, features: list, groupers: dict):
@@ -259,6 +247,17 @@ def _aggregate_features(data, fframe, features: list, groupers: dict):
     fframe._reset_date_index(calcs)
 
     return calcs
+
+
+def _get_nonhierarchical_names(lag, features, window, aggregations):
+    lag_str = f"_lag{lag}" if lag != 0 else ""
+
+    names = [
+        f"{feature}_{aggregation}_roll{window}{lag_str}"
+        for feature in features
+        for aggregation in aggregations
+    ]
+    return names
 
 
 def calc_statistical_features(
@@ -314,47 +313,8 @@ def calc_statistical_features(
         If set to "sample", will also add the function call to function_list for
         later processing.
     """
-    if attribute == "sample":
-        self.function_list.append(
-            (
-                calc_statistical_features,
-                {
-                    "features": features,
-                    "windows": windows,
-                    "aggregations": aggregations,
-                    "lag": lag,
-                    "groupers": groupers,
-                    "min_periods": min_periods,
-                    "momentums": momentums,
-                    "percentages": percentages,
-                },
-            )
-        )
 
-    data = getattr(self, attribute)
-
-    features, windows, aggregations = [
-        utilities._ensure_is_list(obj) for obj in [features, windows, aggregations]
-    ]
-
-    if not groupers:
-        if not self.hierar
-        grouper_name = None
-        groupby_cols = self.hierarchy
-        processed_data = data
-    else:
-        grouper_name = groupers["name"]
-        groupby_cols = groupers["columns"]
-        processed_data = _aggregate_features(
-            data=data, fframe=self, features=features, groupers=groupers
-        )
-
-    for window in windows:
-        if not min_periods:
-            min_period = int(np.ceil(window ** 0.8))
-        else:
-            min_period = min_periods
-
+    def _handle_hierarchical_statistics():
         # NOTE: you have to use .apply when applying two functions
         # (e.g., rolling + shift) to a DataFrameGroupBy
         calcs = processed_data.groupby(groupby_cols, dropna=False)[features].apply(
@@ -406,6 +366,79 @@ def calc_statistical_features(
             divisors = data[sum_names].values
             getattr(self, attribute)[perc_names] = numerators / divisors
 
+    def _handle_nonhierarchical_statistics(
+        data, lag, features, window, min_period, aggregations
+    ):
+
+        column_names = _get_nonhierarchical_names(
+            lag=lag, features=features, window=window, aggregations=aggregations
+        )
+
+        data[column_names] = (
+            data[features]
+            .shift(lag)
+            .rolling(str(window) + "D", min_periods=min_period)
+            .agg(aggregations)
+        )
+
+        setattr(self, attribute, data)
+
+    if attribute == "sample":
+        self.function_list.append(
+            (
+                calc_statistical_features,
+                {
+                    "features": features,
+                    "windows": windows,
+                    "aggregations": aggregations,
+                    "lag": lag,
+                    "groupers": groupers,
+                    "min_periods": min_periods,
+                    "momentums": momentums,
+                    "percentages": percentages,
+                },
+            )
+        )
+
+    data = getattr(self, attribute)
+
+    features, windows, aggregations = [
+        utilities._ensure_is_list(obj) for obj in [features, windows, aggregations]
+    ]
+
+    if not groupers:
+        if self.hierarchy is None:
+            groupby_cols = None
+        else:
+            grouper_name = None
+            groupby_cols = self.hierarchy
+            processed_data = data
+    else:
+        grouper_name = groupers["name"]
+        groupby_cols = groupers["columns"]
+        processed_data = _aggregate_features(
+            data=data, fframe=self, features=features, groupers=groupers
+        )
+
+    for window in windows:
+        if not min_periods:
+            min_period = int(np.ceil(window ** 0.8))
+        else:
+            min_period = min_periods
+
+        # Handle case where we don't have a hierarchy
+        if groupby_cols is None:
+            _handle_nonhierarchical_statistics(
+                data=data,
+                lag=lag,
+                features=features,
+                window=window,
+                min_period=min_period,
+                aggregations=aggregations,
+            )
+        else:
+            _handle_hierarchical_statistics()
+
 
 def calc_ewma(
     self,
@@ -454,49 +487,18 @@ def calc_ewma(
         later processing.
     """
 
-    if crossovers & (len(windows) <= 1):
-        raise ValueError("Please pass 2+ windows if you want to calculate crossovers.")
-
-    if attribute == "sample":
-        self.function_list.append(
-            (
-                calc_ewma,
-                {
-                    "features": features,
-                    "windows": windows,
-                    "lag": lag,
-                    "groupers": groupers,
-                    "min_periods": min_periods,
-                    "crossovers": crossovers,
-                },
-            )
-        )
-
-    features, windows = [utilities._ensure_is_list(obj) for obj in [features, windows]]
-
-    windows.sort()
-
-    if not groupers:
-        grouper_name = None
-        groupby_cols = self.hierarchy
-        data = getattr(self, attribute)
-    else:
-        grouper_name = groupers["name"]
-        groupby_cols = groupers["columns"]
-        data = _aggregate_features(
-            data=getattr(self, attribute),
-            fframe=self,
-            features=features,
-            groupers=groupers,
-        )
-
-    crossover_list = []
-    for window in windows:
-        if not min_periods:
-            min_period = int(np.ceil(window ** 0.8))
-        else:
-            min_period = min_periods
-
+    def _handle_hierarchical_ewma(
+        data,
+        lag,
+        features,
+        window,
+        min_period,
+        groupoer_name,
+        groupby_cols,
+        crossovers,
+        *args,
+        **kwargs,
+    ):
         # NOTE: passing the .agg argument in a list is actually important,
         # otherwise pandas won't return the grouper index
         calcs = data.groupby(groupby_cols, dropna=False)[features].apply(
@@ -518,12 +520,106 @@ def calc_ewma(
             second_df=calcs, index=groupby_cols, attribute=attribute
         )
 
-        setattr(self, attribute, final_output)
-
+        # TODO need a better way to handle this
         if crossovers:
+            nonlocal crossover_list
             crossover_list += [calcs]
 
+        setattr(self, attribute, final_output)
+
+    def _handle_nonhierarchical_ewma(
+        data, lag, features, window, min_period, *args, **kwargs
+    ):
+        column_names = _get_nonhierarchical_names(
+            lag=lag, features=features, window=window, aggregations=["ewma"]
+        )
+
+        data[column_names] = (
+            data[features]
+            .shift(lag)
+            .ewm(span=window, min_periods=min_period, *args, **kwargs)
+            .agg(["mean"])
+        )
+
+        setattr(self, attribute, data)
+
+    features, windows = [utilities._ensure_is_list(obj) for obj in [features, windows]]
+
+    if crossovers & (len(windows) <= 1):
+        raise ValueError("Please pass 2+ windows if you want to calculate crossovers.")
+
+    if attribute == "sample":
+        self.function_list.append(
+            (
+                calc_ewma,
+                {
+                    "features": features,
+                    "windows": windows,
+                    "lag": lag,
+                    "groupers": groupers,
+                    "min_periods": min_periods,
+                    "crossovers": crossovers,
+                },
+            )
+        )
+
+    windows.sort()
+
+    data = getattr(self, attribute)
+
+    if not groupers:
+        if self.hierarchy is None:
+            groupby_cols = None
+        else:
+            grouper_name = None
+            groupby_cols = self.hierarchy
+    else:
+        grouper_name = groupers["name"]
+        groupby_cols = groupers["columns"]
+        data = _aggregate_features(
+            data=getattr(self, attribute),
+            fframe=self,
+            features=features,
+            groupers=groupers,
+        )
+
+    crossover_list = []
+    for window in windows:
+        if not min_periods:
+            min_period = int(np.ceil(window ** 0.8))
+        else:
+            min_period = min_periods
+
+        if groupby_cols is None:
+            _handle_nonhierarchical_ewma(
+                data=data,
+                lag=lag,
+                features=features,
+                window=window,
+                min_period=min_period,
+                *args,
+                **kwargs,
+            )
+        else:
+            _handle_hierarchical_ewma(
+                data=data,
+                lag=lag,
+                features=features,
+                window=window,
+                min_period=min_period,
+                groupby_cols=groupby_cols,
+                groupoer_name=grouper_name,
+                crossovers=crossovers,
+                *args,
+                **kwargs,
+            )
+
     if crossovers:
+        if not crossover_list:
+            # TODO
+            raise ValueError(
+                "Crossovers only available for hierarchical data at this time"
+            )
 
         data = getattr(self, attribute)
 
