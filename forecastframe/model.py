@@ -1199,10 +1199,12 @@ def _grid_search_prophet_params(self, training_data, param_grid, transform_dict)
         estimator = _fit_prophet(training_data, **param)
         predictions = _predict_prophet(model_object=estimator, df=training_data)["yhat"]
 
-        descaled_actuals, descaled_predictions = [
-            self._descale_target(df, transform_dict)
-            for df in [training_data["y"], predictions]
-        ]
+        descaled_actuals = self._descale_target(
+            training_data, transform_dict=transform_dict, target="y"
+        )
+        descaled_predictions = self._descale_target(
+            predictions, transform_dict=transform_dict, target="yhat"
+        )
 
         rmses.append(
             _calc_RMSE(actuals=descaled_actuals, predictions=descaled_predictions)
@@ -1251,6 +1253,7 @@ def _postprocess_prophet_names(self, df):
     return df
 
 
+# TODO update name for parallelism
 def _cross_validate_prophet(
     self,
     params: dict = None,
@@ -1318,6 +1321,7 @@ def _cross_validate_prophet(
             model_object=estimator_dict["best_estimator"],
             df=train,
         )["yhat"]
+
         test_predictions = _predict_prophet(
             model_object=estimator_dict["best_estimator"], df=test
         )["yhat"]
@@ -1335,11 +1339,11 @@ def _cross_validate_prophet(
             ]
         ]
 
-        train[f"predicted_{self.target}"], train[f"{self.target}"] = [
+        train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
             descaled_train_predictions,
             train_actuals,
         ]
-        test[f"predicted_{self.target}"], test[f"{self.target}"] = [
+        test.loc[:, f"predicted_{self.target}"], test.loc[:, f"{self.target}"] = [
             descaled_test_predictions,
             test_actuals,
         ]
@@ -1373,13 +1377,13 @@ def _get_prophet_predictions(self, future_periods, *args, **kwargs):
 
     output = _postprocess_prophet_names(self=self, df=predictions)
 
-    descaled_output = self._descale_target(
+    output.loc[:, f"predicted_{self.target}"] = self._descale_target(
         output, transform_dict=transform_dict, target=f"predicted_{self.target}"
     )
 
     result_dict = {"estimator": estimator}
 
-    return descaled_output, result_dict
+    return output, result_dict
 
 
 def predict(
@@ -1545,7 +1549,7 @@ def _calc_errors(self, data, describe):
     data = data.copy(deep=True)
 
     for metric in function_mapping_dict.keys():
-        data[metric] = function_mapping_dict[metric](
+        data.loc[:, metric] = function_mapping_dict[metric](
             actuals=data[self.target],
             predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
