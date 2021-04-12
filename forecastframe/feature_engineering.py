@@ -69,18 +69,22 @@ def calc_days_since_release(
     if ignore_leading_zeroes:
         data = data[data[self.target] > 0]
 
-    earliest_times_per_group = (
-        data.groupby(self.hierarchy)[self.datetime_column]
-        .min()
-        .reset_index()
-        .rename({self.datetime_column: "first_purchase_date"}, axis=1)
-    )
+    if self.hierarchy is None:
+        # Handle case where no hierarchy is supplied
+        data["first_purchase_date"] = data[self.datetime_column].min()
+    else:
+        earliest_times_per_group = (
+            data.groupby(self.hierarchy)[self.datetime_column]
+            .min()
+            .reset_index()
+            .rename({self.datetime_column: "first_purchase_date"}, axis=1)
+        )
 
-    data = (
-        getattr(self, attribute)
-        .reset_index()
-        .merge(earliest_times_per_group, on=self.hierarchy)
-    )
+        data = (
+            getattr(self, attribute)
+            .reset_index()
+            .merge(earliest_times_per_group, on=self.hierarchy)
+        )
 
     # if first_purchase_date is NaT, it means that the item hasn't been purchased yet
     data["first_purchase_date"] = data["first_purchase_date"].fillna(
@@ -334,6 +338,7 @@ def calc_statistical_features(
     ]
 
     if not groupers:
+        if not self.hierar
         grouper_name = None
         groupby_cols = self.hierarchy
         processed_data = data
