@@ -107,7 +107,6 @@ class ForecastFrame:
         get_errors,
         get_cross_validation_errors,
         _run_scaler_pipeline,
-        _run_scaler_pipeline,
         _split_scale_and_feature_engineering,
         _run_feature_engineering,
         _run_ensembles,
