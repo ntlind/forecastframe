@@ -126,8 +126,10 @@ def test__format_dates():
     }
 
     for key in test_cases.keys():
-        result = ff.utilities._format_dates(test_cases[key])
-        assert result == answers[key], f"Wrong answer for {key}"
+        date_format, result = ff.utilities._format_dates(test_cases[key])
+        assert (
+            result == answers[key]
+        ), f"Wrong answer for {key}: {list(zip(result, answers[key]))}"
 
 
 def test_format_dates():
@@ -143,7 +145,6 @@ def test_format_dates():
 
 
 if __name__ == "__main__":
-    blah()
     test__format_dates()
     test_format_dates()
     test_calc_percent_change()

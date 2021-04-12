@@ -381,9 +381,9 @@ def check_memory():
 def _format_dates(date_series):
     # measured in seconds
     date_dict = {
-        1: "%-S",  # second
-        60: "%-M",  # minute
-        60 * 60: "%-H",  # hour
+        1: "%b. %-d %Y %-H:%-M:%-S",  # second
+        60: "%b. %-d %Y %-H:%-M",  # minute
+        60 * 60: "%b. %-d %Y %-H",  # hour
         60 * 60 * 24: "%b. %-d %Y",  # day
         60 * 60 * 24 * 7: "Week %U %Y",  # week
         60 * 60 * 24 * 7 * 4: "%b. %Y",  # month
