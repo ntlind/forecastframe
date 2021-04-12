@@ -54,8 +54,8 @@ def calc_days_since_release(
         If true, start the count when the product was first sold,
         not when it was first carried.
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
 
@@ -177,11 +177,11 @@ def lag_features(self, features: list, lags: list, attribute: str = "sample"):
     lags : list
         A list of time differences that you'd like to calculate
         (e.g., passing [1, 3] means "create two sets of new columns
-        for each feature: one that's lagged 1 period, and one 
+        for each feature: one that's lagged 1 period, and one
         that's lagged 3 periods")
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
 
@@ -201,16 +201,27 @@ def lag_features(self, features: list, lags: list, attribute: str = "sample"):
 
         column_names = {feature: f"{feature}_lag{lag}" for feature in features}
 
-        lag_columns = (
-            data.groupby(self.hierarchy)[features]
-            .shift(lag, freq="D")
-            .rename(column_names, axis=1)
-        )
+        if self.hierarchy:
+            lag_columns = (
+                data.groupby(self.hierarchy)[features]
+                .shift(lag)
+                .rename(column_names, axis=1)
+            )
+            final_output = self._join_new_columns(
+                second_df=lag_columns, attribute=attribute
+            )
+            setattr(self, attribute, final_output)
 
-        final_output = self._join_new_columns(
-            groupby_df=lag_columns, attribute=attribute
-        )
-        setattr(self, attribute, final_output)
+        else:
+            lag_columns = data[features].shift(lag).rename(column_names, axis=1)
+
+            assert len(lag_columns) == len(data)
+
+            final_output = self._join_new_columns(
+                second_df=lag_columns, attribute=attribute
+            )
+
+            setattr(self, attribute, final_output)
 
 
 def _aggregate_features(data, fframe, features: list, groupers: dict):
@@ -295,8 +306,8 @@ def calc_statistical_features(
     percentages: bool, default False
         If True, divides each feature by its rolling sum
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
     if attribute == "sample":
@@ -361,7 +372,7 @@ def calc_statistical_features(
         )
 
         final_output = self._join_new_columns(
-            groupby_df=calcs, index=groupby_cols, attribute=attribute
+            second_df=calcs, index=groupby_cols, attribute=attribute
         )
 
         setattr(self, attribute, final_output)
@@ -425,7 +436,7 @@ def calc_ewma(
             grouper_cols: the columns used to aggregate the grouper up to the
                 given aggregate level (e.g., ["category", "store"])
             grouper_op: the operation used to aggregate the grouper_cols
-                (e.g., "sum") 
+                (e.g., "sum")
     min_periods: int, default None
         The minimum number of periods required for your rolling metrics to not
         throw a null. See "min_periods" in pd.rolling. If None, varies your
@@ -433,8 +444,8 @@ def calc_ewma(
     crossovers: bool, default False
         Return the crossovers (differences and ratios) for all calculated ewma stats.
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
 
@@ -499,7 +510,7 @@ def calc_ewma(
         )
 
         final_output = self._join_new_columns(
-            groupby_df=calcs, index=groupby_cols, attribute=attribute
+            second_df=calcs, index=groupby_cols, attribute=attribute
         )
 
         setattr(self, attribute, final_output)
@@ -534,7 +545,7 @@ def _get_transformed_column_names(
     to_dict=False,
 ):
     """
-    Returns either a list of new column names or a mapping dict from old names to 
+    Returns either a list of new column names or a mapping dict from old names to
     new names. Only used in this script.
     """
     lag_str = f"_lag{lag}" if lag != 0 else ""
@@ -554,8 +565,8 @@ def _get_transformed_column_names(
 
 
 def _calc_percent_change(data, feature, groupers, lag, column_name):
-    """Helper function for calculating the percent change in some column   
-    
+    """Helper function for calculating the percent change in some column
+
     NOTE: groupby(groupers).pct_change() wasn't producing the desired outputs,
           so used lambda instead
     """
@@ -594,15 +605,19 @@ def calc_percent_change(
             columns: the columns used to aggregate the grouper up to the
                 given aggregate level (e.g., ["category", "store"])
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
     if attribute == "sample":
         self.function_list.append(
             (
                 calc_percent_change,
-                {"feature": feature, "lag": lag, "groupers": groupers,},
+                {
+                    "feature": feature,
+                    "lag": lag,
+                    "groupers": groupers,
+                },
             )
         )
 
@@ -675,11 +690,11 @@ def calc_percent_relative_to_threshold(
     threshold: int, default 0
         The value that your operator should compare against.
     operator: str, default greater
-        The operator that should be used to compare your features to your threshold. 
+        The operator that should be used to compare your features to your threshold.
         Should be one of "greater", "less", "equal", or "not equal"
     attribute : str, default "sample"
-        The attribute of self where your data should be pulled from and saved to. 
-        If set to "sample", will also add the function call to function_list for 
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
         later processing.
     """
 
@@ -754,7 +769,7 @@ def calc_percent_relative_to_threshold(
         )
 
         final_output = self._join_new_columns(
-            groupby_df=calcs, index=groupby_cols, attribute=attribute
+            second_df=calcs, index=groupby_cols, attribute=attribute
         )
 
         setattr(self, attribute, final_output)
@@ -773,7 +788,12 @@ def calc_prophet_predictions(self, train_df=None, test_df=None, *args, **kwargs)
     test_df : pd.DataFrame, default None
         If a pd.DataFrame is passed, will return predictions on the second dataframe as well
     """
-    from forecastframe.models import _fit_prophet, _predict_prophet, _preprocess_prophet_names, _postprocess_prophet_names
+    from forecastframe.models import (
+        _fit_prophet,
+        _predict_prophet,
+        _preprocess_prophet_names,
+        _postprocess_prophet_names,
+    )
 
     if not isinstance(train_df, pd.DataFrame):
         self.ensemble_list.append((calc_prophet_predictions, args, kwargs))

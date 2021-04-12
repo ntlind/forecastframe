@@ -140,28 +140,32 @@ def _reset_multi_index(self, df, hierarchy=None):
     return output
 
 
-def _join_new_columns(self, groupby_df, attribute, index=None):
+def _join_new_columns(self, second_df, attribute, index=None):
     """
     Joins back a set of aggregated columns using the hierarchy index
 
     This join is required because pd.DataFrame.shift() with "freq" shifts indices.
     See here: https://github.com/pandas-dev/pandas/issues/27091
     """
-    if not index:
-        index = self.hierarchy
-
     data = getattr(self, attribute)
+
+    if index is None:
+        if self.hierarchy is None:
+            # Handle the case where there isn't a hierarchy in their data, so we want to just join on index
+            return data.combine_first(second_df)
+        else:
+            index = self.hierarchy
 
     join_columns = index + [self.datetime_column]
 
     data.drop(
-        groupby_df,
+        second_df,
         inplace=True,
         axis=1,
         errors="ignore",
     )
 
-    return data.merge(groupby_df, how="left", on=join_columns)
+    return data.merge(second_df, how="left", on=join_columns)
 
 
 def _update_values(self, df_to_update, second_df):
