@@ -1,10 +1,2 @@
-pandas
-numpy
-pytest
-shap
-sklearn
-psutil
-tqdm
-fbprophet
-lightgbm
-altair
+pystan~=2.19.1.1
+-r ./prod-requirements.txt

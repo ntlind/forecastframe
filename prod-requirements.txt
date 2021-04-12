@@ -1,0 +1,10 @@
+pandas
+numpy
+pytest
+shap
+sklearn
+psutil
+tqdm
+fbprophet
+lightgbm
+altair
