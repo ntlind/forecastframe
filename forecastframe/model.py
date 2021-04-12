@@ -1449,17 +1449,23 @@ def cross_validate(
 def _merge_actuals(self):
     """
     Merge your actuals column back with your predictions df
+
+    NOTE: Doesn't join instances where actuals are null
     """
     if self.hierarchy:
         data = self.predictions.loc[:, [f"predicted_{self.target}"] + self.hierarchy]
         merged_values = data.merge(
-            self.data.loc[:, [self.target] + self.hierarchy],
+            self.data.loc[
+                ~self.data[self.target].isnull(), [self.target] + self.hierarchy
+            ],
             on=[self.datetime_column] + self.hierarchy,
             how="outer",
         )
     else:
         merged_values = self.predictions.loc[:, [f"predicted_{self.target}"]].merge(
-            self.data.loc[:, self.target], on=[self.datetime_column], how="outer"
+            self.data.loc[~self.data[self.target].isnull(), self.target],
+            on=[self.datetime_column],
+            how="outer",
         )
 
     assert len(merged_values) == len(
