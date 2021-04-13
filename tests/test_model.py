@@ -19,7 +19,7 @@ def test__run_scaler_pipeline():
     assert fframe.data.equals(initial_data)
     assert not initial_sample["sales_int"].equals(fframe.sample["sales_int"])
 
-    log_data, log_dict = fframe._run_scaler_pipeline([fframe.data])
+    log_data, log_dict = fframe._run_scaler_pipeline(fframe.data)
 
     log_data = fframe._run_feature_engineering(log_data)
 
