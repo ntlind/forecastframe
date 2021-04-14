@@ -14,7 +14,7 @@ from forecastframe.utilities import (
 
 import forecastframe.model as model
 
-## Helper functions
+
 def _format_percentage(percentage):
     return "{:.2%}".format(percentage)
 
@@ -38,241 +38,234 @@ def _get_error_dict():
     }
 
 
-def _translate_error(error):
-    """Convert an error acroynm into it's written form"""
-    translate_dict = _get_error_dict()
-    return translate_dict[error]
+# def _check_error_input(error):
+#     """Check that the given error has been implemented"""
+#     acceptable_errors = _get_error_dict().keys()
+#     assert (
+#         error in acceptable_errors
+#     ), f"Error metric not recognized; should be one of {acceptable_errors}"
 
 
-def _check_error_input(error):
-    """Check that the given error has been implemented"""
-    acceptable_errors = _get_error_dict().keys()
-    assert (
-        error in acceptable_errors
-    ), f"Error metric not recognized; should be one of {acceptable_errors}"
+# def _score_oos_error(value, error_type):
+#     from collections import OrderedDict
+
+#     threshold_dict = {
+#         "APE": OrderedDict({"best": 0.05, "good": 0.10, "bad": 0.15, "worst": 1})
+#     }
+
+#     threshold_score = [
+#         key
+#         for key, threshold in threshold_dict[error_type].items()
+#         if value <= threshold
+#     ]
+
+#     return threshold_score[0]
 
 
-def _score_oos_error(value, error_type):
-    from collections import OrderedDict
+# def _score_oos_is_difference(value, error_type):
+#     from collections import OrderedDict
 
-    threshold_dict = {
-        "APE": OrderedDict({"best": 0.05, "good": 0.10, "bad": 0.15, "worst": 1})
-    }
+#     threshold_dict = {
+#         "APE": OrderedDict({"best": 0.10, "good": 0.15, "bad": 0.25, "worst": 1})
+#     }
 
-    threshold_score = [
-        key
-        for key, threshold in threshold_dict[error_type].items()
-        if value <= threshold
-    ]
+#     threshold_score = [
+#         key
+#         for key, threshold in threshold_dict[error_type].items()
+#         if value <= threshold
+#     ]
 
-    return threshold_score[0]
-
-
-def _score_oos_is_difference(value, error_type):
-    from collections import OrderedDict
-
-    threshold_dict = {
-        "APE": OrderedDict({"best": 0.10, "good": 0.15, "bad": 0.25, "worst": 1})
-    }
-
-    threshold_score = [
-        key
-        for key, threshold in threshold_dict[error_type].items()
-        if value <= threshold
-    ]
-
-    return threshold_score[0]
+#     return threshold_score[0]
 
 
-## Plotting
-def plot_fold_distributions(
-    self, groupers=None, error_type="APE", height=75, width=300, show=True
-):
-    """
-    Return an altair boxplot of all of the error metrics visualized by fold
+# def plot_fold_distributions(
+#     self, groupers=None, error_type="APE", height=75, width=300, show=True
+# ):
+#     """
+#     Return an altair boxplot of all of the error metrics visualized by fold
 
-    Parameters
-    ----------
-    groupers : list, default None
-        If a list of groupers is passed, it will calculate error metrics for a given
-        set of aggregated predictions stored in processed_outputs.
-    error_type : str, default "RMSE"
-        The error metric you'd like to plot by fold. Should be one of "APE",
-        "AE", "RMSE", or "SE".
-    height : int, default 75
-        The height of the altair plot to be shown
-    width : int, default 300
-        The height of the altair plot to be shown
-    show : bool, default True
-        Whether or not to render the final plot in addition to returning the altair object
-    """
-    _check_error_input(error_type)
+#     Parameters
+#     ----------
+#     groupers : list, default None
+#         If a list of groupers is passed, it will calculate error metrics for a given
+#         set of aggregated predictions stored in processed_outputs.
+#     error_type : str, default "RMSE"
+#         The error metric you'd like to plot by fold. Should be one of "APE",
+#         "AE", "RMSE", or "SE".
+#     height : int, default 75
+#         The height of the altair plot to be shown
+#     width : int, default 300
+#         The height of the altair plot to be shown
+#     show : bool, default True
+#         Whether or not to render the final plot in addition to returning the altair object
+#     """
+#     _check_error_input(error_type)
 
-    if "fold_errors" not in dir(self):
-        self.calc_all_error_metrics(groupers=groupers)
+#     if "fold_errors" not in dir(self):
+#         self.calc_all_error_metrics(groupers=groupers)
 
-    combined_df = pd.concat(
-        [
-            _melt_dataframe_for_visualization(
-                self.fold_errors[fold], group_name=f"Fold {fold + 1}", error=error_type
-            )
-            for fold, _ in self.fold_errors.items()
-        ],
-        axis=0,
-    )
+#     combined_df = pd.concat(
+#         [
+#             _melt_dataframe_for_visualization(
+#                 self.fold_errors[fold], group_name=f"Fold {fold + 1}", error=error_type
+#             )
+#             for fold, _ in self.fold_errors.items()
+#         ],
+#         axis=0,
+#     )
 
-    plot = _plot_melted_boxplot(melted_df=combined_df, height=height, width=width)
+#     plot = _plot_melted_boxplot(melted_df=combined_df, height=height, width=width)
 
-    if show:
-        plot
+#     if show:
+#         plot
 
-    return plot
-
-
-def _plot_boxplot(
-    data, x_axis_title="", y_axis_title="", scheme="tealblues", height=75, width=300
-):
-    fig = (
-        alt.Chart(data)
-        .mark_boxplot(outliers=False)
-        .encode(
-            x=alt.Column("variable:O", title=x_axis_title),
-            y=alt.Column("value:Q", title=y_axis_title),
-            color=alt.Column(
-                "variable:O",
-                title="",
-                legend=None,
-                scale=alt.Scale(scheme=scheme),
-            ),
-        )
-        .properties(height=height, width=width)
-        .interactive()
-    )
-
-    return fig
+#     return plot
 
 
-def _plot_melted_boxplot(
-    melted_df,
-    x_axis_title="",
-    y_axis_title="",
-    scheme="tealblues",
-    height=75,
-    width=300,
-):
-    # Schemes https://vega.github.io/vega/docs/schemes/#reference
-    fig = (
-        alt.Chart(melted_df)
-        .mark_boxplot(outliers=False)
-        .encode(
-            y=alt.Column("variable:O", title=y_axis_title),
-            x=alt.Column("value:Q", title=x_axis_title),
-            color=alt.Column(
-                "group:O",
-                title="",
-                legend=None,
-                scale=alt.Scale(scheme=scheme),
-            ),
-            row=alt.Column(
-                "group",
-                title="",
-                header=alt.Header(labelAngle=1, labelFontSize=16, labelPadding=0),
-            ),
-        )
-        .properties(width=width, height=height)
-        .interactive()
-    )
+# def _plot_boxplot(
+#     data, x_axis_title="", y_axis_title="", scheme="tealblues", height=75, width=300
+# ):
+#     fig = (
+#         alt.Chart(data)
+#         .mark_boxplot(outliers=False)
+#         .encode(
+#             x=alt.Column("variable:O", title=x_axis_title),
+#             y=alt.Column("value:Q", title=y_axis_title),
+#             color=alt.Column(
+#                 "variable:O",
+#                 title="",
+#                 legend=None,
+#                 scale=alt.Scale(scheme=scheme),
+#             ),
+#         )
+#         .properties(height=height, width=width)
+#         .interactive()
+#     )
 
-    return fig
+#     return fig
 
 
-def plot_predictions_over_time(self, groupers=None):
-    """
-    Return a dictionary showing predictions and actuals over time for both "IS"
-    and "OOS".
+# def _plot_melted_boxplot(
+#     melted_df,
+#     x_axis_title="",
+#     y_axis_title="",
+#     scheme="tealblues",
+#     height=75,
+#     width=300,
+# ):
+#     # Schemes https://vega.github.io/vega/docs/schemes/#reference
+#     fig = (
+#         alt.Chart(melted_df)
+#         .mark_boxplot(outliers=False)
+#         .encode(
+#             y=alt.Column("variable:O", title=y_axis_title),
+#             x=alt.Column("value:Q", title=x_axis_title),
+#             color=alt.Column(
+#                 "group:O",
+#                 title="",
+#                 legend=None,
+#                 scale=alt.Scale(scheme=scheme),
+#             ),
+#             row=alt.Column(
+#                 "group",
+#                 title="",
+#                 header=alt.Header(labelAngle=1, labelFontSize=16, labelPadding=0),
+#             ),
+#         )
+#         .properties(width=width, height=height)
+#         .interactive()
+#     )
 
-    Parameters
-    ----------
-    groupers : List[str], default None
-        Optional parameter to create color labels for your grouping columns.
-    """
-    output_dict = dict()
-    for sample in ["IS", "OOS"]:
-        data = _get_processed_outputs(self=self, sample=sample, groupers=groupers)
-
-        # altair doesn't handle categoricals
-        converted_data = _convert_nonnumerics_to_objects(data)
-
-        output_dict[sample] = _plot_lineplot_over_time(
-            data=converted_data, groupers=groupers
-        )
-
-    return output_dict
+#     return fig
 
 
-def _plot_lineplot_over_time(data, groupers):
-    """Plots predictions vs. actuals over time."""
-    import altair as alt
+# def plot_predictions_over_time(self, groupers=None):
+#     """
+#     Return a dictionary showing predictions and actuals over time for both "IS"
+#     and "OOS".
 
-    if groupers:
-        data["group"] = data[groupers].apply(
-            lambda row: "/".join(row.values.astype(str)), axis=1
-        )
+#     Parameters
+#     ----------
+#     groupers : List[str], default None
+#         Optional parameter to create color labels for your grouping columns.
+#     """
+#     output_dict = dict()
+#     for sample in ["IS", "OOS"]:
+#         data = _get_processed_outputs(self=self, sample=sample, groupers=groupers)
 
-        # altair throws object errors if other columns are serialized
-        data = data[["Date", "Values", "Label", "group"]]
+#         # altair doesn't handle categoricals
+#         converted_data = _convert_nonnumerics_to_objects(data)
 
-        fig = (
-            alt.Chart(data)
-            .mark_line()
-            .encode(
-                x="Date:T",
-                y="Values",
-                color="group:O",
-                strokeDash="Label",
-                tooltip=[
-                    "group:O",
-                    "Label",
-                    alt.Tooltip(
-                        field="Values",
-                        format=".2f",
-                        type="quantitative",
-                    ),
-                    "yearmonthdate(Date)",
-                ],
-            )
-            .configure_axis(grid=False)
-            .configure_view(strokeWidth=0)
-            .interactive()
-        )
-    else:
-        # altair throws object errors if other columns are serialized
-        data = data[["Date", "Values", "Label"]]
-        data["Date"] = pd.to_datetime(data["Date"])
+#         output_dict[sample] = _plot_lineplot_over_time(
+#             data=converted_data, groupers=groupers
+#         )
 
-        fig = (
-            alt.Chart(data)
-            .mark_line()
-            .encode(
-                x="Date:T",
-                y="Values",
-                strokeDash="Label",
-                tooltip=[
-                    "Label",
-                    alt.Tooltip(
-                        field="Values",
-                        format=".2f",
-                        type="quantitative",
-                    ),
-                    "yearmonthdate(Date)",
-                ],
-            )
-            .configure_axis(grid=False)
-            .configure_view(strokeWidth=0)
-            .interactive()
-        )
+#     return output_dict
 
-    return fig
+
+# def _plot_lineplot_over_time(data, groupers):
+#     """Plots predictions vs. actuals over time."""
+#     import altair as alt
+
+#     if groupers:
+#         data["group"] = data[groupers].apply(
+#             lambda row: "/".join(row.values.astype(str)), axis=1
+#         )
+
+#         # altair throws object errors if other columns are serialized
+#         data = data[["Date", "Values", "Label", "group"]]
+
+#         fig = (
+#             alt.Chart(data)
+#             .mark_line()
+#             .encode(
+#                 x="Date:T",
+#                 y="Values",
+#                 color="group:O",
+#                 strokeDash="Label",
+#                 tooltip=[
+#                     "group:O",
+#                     "Label",
+#                     alt.Tooltip(
+#                         field="Values",
+#                         format=".2f",
+#                         type="quantitative",
+#                     ),
+#                     "yearmonthdate(Date)",
+#                 ],
+#             )
+#             .configure_axis(grid=False)
+#             .configure_view(strokeWidth=0)
+#             .interactive()
+#         )
+#     else:
+#         # altair throws object errors if other columns are serialized
+#         data = data[["Date", "Values", "Label"]]
+#         data["Date"] = pd.to_datetime(data["Date"])
+
+#         fig = (
+#             alt.Chart(data)
+#             .mark_line()
+#             .encode(
+#                 x="Date:T",
+#                 y="Values",
+#                 strokeDash="Label",
+#                 tooltip=[
+#                     "Label",
+#                     alt.Tooltip(
+#                         field="Values",
+#                         format=".2f",
+#                         type="quantitative",
+#                     ),
+#                     "yearmonthdate(Date)",
+#                 ],
+#             )
+#             .configure_axis(grid=False)
+#             .configure_view(strokeWidth=0)
+#             .interactive()
+#         )
+
+#     return fig
 
 
 ## Summaries
