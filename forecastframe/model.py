@@ -1023,6 +1023,8 @@ def _make_future_dataframe(
     else:
         output_df = pd.DataFrame({date_name: dates})
 
+    output_df
+
     return output_df
 
 
@@ -1045,13 +1047,13 @@ def _fit_lightgbm(data, target, model_type="regression", **kwargs):
 
     model_object.fit(X, y)
 
-    model_object.history = data
+    model_object.history = X
 
     return model_object
 
 
 def _predict_lightgbm(
-    model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
+    self, model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
 ):
     """
     Predicts future occurences
@@ -1061,28 +1063,17 @@ def _predict_lightgbm(
             df = model_object.history.copy()
         else:
             df = _make_future_dataframe(
-                model_object=model_object, periods=future_periods, hierarchy=hierarchy
-            )
-            df = model_object.setup_dataframe(df)
-    else:
-        if df.shape[0] == 0:
-            raise ValueError("Dataframe has no rows.")
-        df = model_object.setup_dataframe(df.copy())
+                self=self,
+                model_object=model_object,
+                periods=future_periods,
+                hierarchy=hierarchy,
+            ).set_index(self.datetime_column)
 
-    df["trend"] = model_object.predict_trend(df)
-    seasonal_components = model_object.predict_seasonal_components(df)
-    if model_object.uncertainty_samples:
-        intervals = model_object.predict_uncertainty(df)
-    else:
-        intervals = None
+    print(f"pred cols {df.columns}")
 
-    output_df = pd.concat((df, intervals, seasonal_components), axis=1)
-    output_df["yhat"] = (
-        output_df["trend"] * (1 + output_df["multiplicative_terms"])
-        + output_df["additive_terms"]
-    )
+    df[f"predicted_{self.target}"] = model_object.predict(df)
 
-    return output_df
+    return df
 
 
 def _fit_prophet(data, *args, **kwargs):
@@ -1181,8 +1172,6 @@ def _fit_prophet(data, *args, **kwargs):
 
     model = model.fit(data)
 
-    model.history = data
-
     return model
 
 
@@ -1248,7 +1237,7 @@ def get_predictions(self, columns_to_keep=None):
     """
     data = _merge_actuals(self)
 
-    if not columns_to_keep:
+    if columns_to_keep is None:
         columns_to_keep = [
             "trend",
             f"predicted_{self.target}",
@@ -1448,15 +1437,16 @@ def _get_lightgbm_predictions(self, future_periods, model_type="regression", **k
     """Helper function to produce lgbm forecasts"""
     df, transform_dict = _handle_scaling_and_feature_engineering(self)
 
-    estimator = _fit_lightgbm(data=df, **kwargs)
+    model_object = _fit_lightgbm(data=df, target=self.target, **kwargs)
 
-    predictions = _predict_lightgbm(
-        model_object=estimator,
+    print(f"input columns: {model_object.feature_name_}")
+
+    output = _predict_lightgbm(
+        self=self,
+        model_object=model_object,
         future_periods=future_periods,
         hierarchy=self.hierarchy,
     )
-
-    output = _postprocess_prophet_names(self=self, df=predictions)
 
     output.loc[:, f"predicted_{self.target}"] = self._descale_target(
         output, transform_dict=transform_dict, target=f"predicted_{self.target}"
