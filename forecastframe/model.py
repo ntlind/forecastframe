@@ -133,44 +133,145 @@ def _get_scaling_function(func_string: str):
     return function_dict[func_string]
 
 
-def _calc_best_estimator(
-    X,
-    y,
-    params,
-    estimator,
-    scoring,
-    splitter,
-    cv_func,
-    folds,
-    n_jobs,
-    verbose,
-    n_iter,
+def _get_lightgbm_cv(
+    self,
+    params: dict = None,
+    splitter: object = LeaveOneGroupOut,
+    search_strategy: str = "random",
+    folds: int = 5,
+    gap: int = 0,
+    **kwargs,
 ):
     """
-    Intermediary function shared by fit_insample_model and cross_validate_lgbm
-    to fit an sklearn cross-validation method.
+    Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search,
+    and creates out-of-sample predictions for analysis.
+
+    Parameters
+    ----------
+    params : dict, default None
+        A dictionary of LightGBM parameters to explore. If none, uses a default "light" dict.
+    splitter : object, default LeaveOneGroupOut
+        The strategy that sklearn uses to split your cross-validation set. Defaults to
+        LeaveOneGroupOut.
+    folds : int, default 5
+        Number of folds to use during cross-valdation
+    gap : int, default 0
+        Number of periods to skip in between test and training folds.
     """
+
+    valid_strategies = ["random", "grid"]
+
+    assert (
+        search_strategy in valid_strategies
+    ), f"search_strategy should be one of {valid_strategies}"
+
+    import itertools
+
+    if not params:
+        params = get_lgb_params("light")
+
+    self.compress()
+
+    self.data = self.data.sort_index()
+
+    time_grouper = self.data.index
+
+    time_splitter = TimeSeriesSplit(n_splits=folds, gap=gap)
+
+    time_splits = list(time_splitter.split(time_grouper))
+
+    self.cross_validations = {}
+
+    for fold, [train_index, test_index] in enumerate(time_splits):
+
+        train, test, transform_dict = self._split_scale_and_feature_engineering(
+            train_index, test_index
+        )
+
+        estimator_dict = _grid_search_lightgbm_params(
+            self=self,
+            training_data=train,
+            search_strategy=search_strategy,
+            params=params,
+            splitter=splitter,
+            folds=folds,
+            transform_dict=transform_dict,
+            **kwargs,
+        )
+
+        train_predictions = _predict_lightgbm(
+            self=self,
+            model_object=estimator_dict["best_estimator"],
+            df=train,
+        )["yhat"]
+
+        test_predictions = _predict_lightgbm(
+            self=self, model_object=estimator_dict["best_estimator"], df=test
+        )["yhat"]
+
+        (train_actuals, test_actuals,) = [
+            self._descale_target(array=df, transform_dict=transform_dict, target="y")
+            for df in [train["y"], test["y"]]
+        ]
+
+        (descaled_train_predictions, descaled_test_predictions,) = [
+            self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
+            for df in [
+                train_predictions,
+                test_predictions,
+            ]
+        ]
+
+        train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
+            descaled_train_predictions,
+            train_actuals,
+        ]
+        test.loc[:, f"predicted_{self.target}"], test.loc[:, f"{self.target}"] = [
+            descaled_test_predictions,
+            test_actuals,
+        ]
+
+        self.cross_validations.append({"train": train, "test": test, **estimator_dict})
+
+
+def _grid_search_lightgbm_params(
+    self,
+    training_data,
+    search_strategy,
+    params,
+    splitter,
+    folds,
+    transform_dict,
+    **kwargs,
+):
+    # TODO need to use transform_dict to descale predictions
+    """
+    Cross-validate a lightgbm pipeline and return the best estimator
+    """
+    estimator_dict = {"lightgbm": (_get_regression_lgbm, None)}
+
+    search_dict = {"grid": GridSearchCV, "random": RandomizedSearchCV}
+
+    estimator, scorer = estimator_dict[self.model]
+    cv_function = search_dict[self.search_strategy]
+
+    X, y = _split_frame(training_data, self.target)
+
     args = {
         "estimator": estimator,
+        "scorer": scorer,
         "cv": splitter(),
         "param_distributions": params,
-        "n_iter": n_iter,
-        "verbose": verbose,
-        "n_jobs": n_jobs,
-        "scoring": scoring,
+        **kwargs,
     }
 
     # sklearn's different CV functions take different arg names
-    if cv_func == GridSearchCV:
+    if search_strategy == "grid":
         args["param_grid"] = args.pop("param_distributions")
-        args.pop("n_iter")
 
-    # TODO is this necessary?
-    time_grouper = X.index
+    cv_object = cv_function(**args)
 
-    cv_object = cv_func(**args)
-
-    cv_object.fit(X, y, groups=time_grouper)
+    cv_object.fit(X, y, groups=X.index)
 
     results = {
         "best_estimator": cv_object.best_estimator_,
@@ -1332,7 +1433,7 @@ def _postprocess_prophet_names(self, df):
 
 
 # TODO update name for parallelism
-def _cross_validate_prophet(
+def _get_prophet_cv(
     self,
     params: dict = None,
     splitter: object = LeaveOneGroupOut,
@@ -1347,7 +1448,7 @@ def _cross_validate_prophet(
     Parameters
     ----------
     params : dict, default None
-        A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
+        A dictionary of Propeht parameters to explore. If none, uses a default "light" dict.
     splitter : object, default LeaveOneGroupOut
         The strategy that sklearn uses to split your cross-validation set. Defaults to
         LeaveOneGroupOut.
@@ -1376,7 +1477,7 @@ def _cross_validate_prophet(
 
     time_splits = list(time_splitter.split(time_grouper))
 
-    results = dict()
+    self.cross_validations = {}
 
     for fold, [train_index, test_index] in enumerate(time_splits):
 
@@ -1483,7 +1584,7 @@ def _get_prophet_predictions(self, future_periods, **kwargs):
     return output, model_object
 
 
-def predict(self, model="prophet", future_periods=None, *args, **kwargs):
+def predict(self, model, future_periods=None, *args, **kwargs):
     """
     Predict the future using the data stored in your fframe
 
@@ -1523,7 +1624,7 @@ def predict(self, model="prophet", future_periods=None, *args, **kwargs):
 
 def cross_validate(
     self,
-    model="prophet",
+    model,
     future_periods=None,
     params: dict = None,
     folds: int = 5,
@@ -1550,7 +1651,7 @@ def cross_validate(
         The strategy that sklearn uses to split your cross-validation set. Defaults to sklearn's LeaveOneGroupOut.
     """
 
-    model_mappings = {"prophet": _cross_validate_prophet}
+    model_mappings = {"prophet": _get_prophet_cv, "lightgbm": _get_lightgbm_cv}
     assert (
         model in model_mappings.keys()
     ), f"Model must be one of {model_mappings.keys()}"
@@ -1561,7 +1662,7 @@ def cross_validate(
         self=self,
         params=params,
         folds=folds,
-        gap=0,
+        gap=gap,
         splitter=LeaveOneGroupOut,
     )
 

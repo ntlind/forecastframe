@@ -33,7 +33,7 @@ def main():
 
     def get_mean(data="sample"):
         """
-        Used for quick distribution tests. More specific tests are available via 
+        Used for quick distribution tests. More specific tests are available via
         unit tests.
         """
         return getattr(fframe, data)["sales"].mean()
@@ -112,7 +112,7 @@ def main():
     #  assert len(fframe.function_list) == 9
 
     # Modeling
-    fframe._cross_validate_prophet(additional_regressors="all")
+    fframe._get_prophet_cv(additional_regressors="all")
 
     fframe.process_outputs()
 
