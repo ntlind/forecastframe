@@ -960,7 +960,7 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
 
 
 def _make_future_dataframe(
-    self, periods, freq="D", include_history=True, hierarchy=None
+    self, model_object, periods, freq="D", include_history=True, hierarchy=None
 ):
     """
     Simulate the trend using the extrapolated generative model. This is a modified version of the original code that can create multiple timeseries for a given hierarchy
@@ -982,9 +982,16 @@ def _make_future_dataframe(
 
     Original code found here: https://github.com/facebook/prophet/blob/master/python/prophet/forecaster.py
     """
-    if self.history_dates is None:
+    if model_object.history is None:
         raise Exception("Model has not been fit.")
-    last_date = self.history_dates.max()
+
+    # prophet will rename the dataframe's datetime column, while lightgbm won't
+    if "ds" in model_object.history.reset_index().columns:
+        date_name = "ds"
+    else:
+        date_name = self.datetime_column
+
+    last_date = model_object.history.index.max()
     dates = pd.date_range(
         start=last_date,
         periods=periods + 1,  # An extra in case we include start
@@ -994,13 +1001,13 @@ def _make_future_dataframe(
     dates = dates[:periods]  # Return correct number of periods
 
     if include_history:
-        dates = np.concatenate((np.array(self.history_dates), dates))
+        dates = np.concatenate((np.array(model_object.history.index), dates))
 
     if hierarchy:
         from itertools import product
 
         unique_hierarchical_elements = (
-            self.history[hierarchy].drop_duplicates().values.tolist()
+            model_object.history[hierarchy].drop_duplicates().values.tolist()
         )
 
         output_df = pd.DataFrame(
@@ -1010,11 +1017,70 @@ def _make_future_dataframe(
                     unique_hierarchical_elements, dates
                 )
             ],
-            columns=hierarchy + ["ds"],
+            columns=hierarchy + [date_name],
         )
 
     else:
-        output_df = pd.DataFrame({"ds": dates})
+        output_df = pd.DataFrame({date_name: dates})
+
+    return output_df
+
+
+def _fit_lightgbm(data, target, model_type="regression", **kwargs):
+    "Handler to create a fit lightgbm estimator"
+
+    model_dict = {
+        "regression": _get_regression_lgbm,
+        "quantile": _get_quantile_lgbm,
+        "tweedie": _get_tweedie_lgbm,
+    }
+
+    assert (
+        model_type in model_dict.keys()
+    ), f"model_type should be one of {model_dict.keys()}"
+
+    model_object = model_dict[model_type](**kwargs)
+
+    X, y = _split_frame(data, target)
+
+    model_object.fit(X, y)
+
+    model_object.history = data
+
+    return model_object
+
+
+def _predict_lightgbm(
+    model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
+):
+    """
+    Predicts future occurences
+    """
+    if df is None:
+        if not future_periods:
+            df = model_object.history.copy()
+        else:
+            df = _make_future_dataframe(
+                model_object=model_object, periods=future_periods, hierarchy=hierarchy
+            )
+            df = model_object.setup_dataframe(df)
+    else:
+        if df.shape[0] == 0:
+            raise ValueError("Dataframe has no rows.")
+        df = model_object.setup_dataframe(df.copy())
+
+    df["trend"] = model_object.predict_trend(df)
+    seasonal_components = model_object.predict_seasonal_components(df)
+    if model_object.uncertainty_samples:
+        intervals = model_object.predict_uncertainty(df)
+    else:
+        intervals = None
+
+    output_df = pd.concat((df, intervals, seasonal_components), axis=1)
+    output_df["yhat"] = (
+        output_df["trend"] * (1 + output_df["multiplicative_terms"])
+        + output_df["additive_terms"]
+    )
 
     return output_df
 
@@ -1115,6 +1181,8 @@ def _fit_prophet(data, *args, **kwargs):
 
     model = model.fit(data)
 
+    model.history = data
+
     return model
 
 
@@ -1144,7 +1212,7 @@ def _predict_prophet(
             df = model_object.history.copy()
         else:
             df = _make_future_dataframe(
-                self=model_object, periods=future_periods, hierarchy=hierarchy
+                model_object=model_object, periods=future_periods, hierarchy=hierarchy
             )
             df = model_object.setup_dataframe(df)
     else:
@@ -1366,23 +1434,47 @@ def _cross_validate_prophet(
         self.cross_validations.append({"train": train, "test": test, **estimator_dict})
 
 
-def _get_prophet_predictions(self, future_periods, *args, **kwargs):
+def _handle_scaling_and_feature_engineering(self):
+    df = self.data.copy(deep=True)
+
+    df, transform_dict = self._run_scaler_pipeline(df)
+
+    df = self._run_feature_engineering(df)
+
+    return df, transform_dict
+
+
+def _get_lightgbm_predictions(self, future_periods, model_type="regression", **kwargs):
+    """Helper function to produce lgbm forecasts"""
+    df, transform_dict = _handle_scaling_and_feature_engineering(self)
+
+    estimator = _fit_lightgbm(data=df, **kwargs)
+
+    predictions = _predict_lightgbm(
+        model_object=estimator,
+        future_periods=future_periods,
+        hierarchy=self.hierarchy,
+    )
+
+    output = _postprocess_prophet_names(self=self, df=predictions)
+
+    output.loc[:, f"predicted_{self.target}"] = self._descale_target(
+        output, transform_dict=transform_dict, target=f"predicted_{self.target}"
+    )
+
+    result_dict = {"estimator": estimator}
+
+    return output, result_dict
+
+
+def _get_prophet_predictions(self, future_periods, **kwargs):
     """Helpers functions to produce prophet forecasts"""
-
-    def _handle_scaling_and_feature_engineering(self):
-        df = self.data.copy(deep=True)
-
-        df, transform_dict = self._run_scaler_pipeline(df)
-
-        df = self._run_feature_engineering(df)
-
-        return df, transform_dict
 
     df, transform_dict = _handle_scaling_and_feature_engineering(self)
 
     processed_df = _preprocess_prophet_names(self=self, df=df)
 
-    estimator = _fit_prophet(data=processed_df, *args, **kwargs)
+    estimator = _fit_prophet(data=processed_df, **kwargs)
 
     predictions = _predict_prophet(
         model_object=estimator,
@@ -1415,7 +1507,10 @@ def predict(
         The number of periods forward to predict. If None, returns in-sample predictions using training dataframe
     """
 
-    model_mappings = {"prophet": _get_prophet_predictions}
+    model_mappings = {
+        "prophet": _get_prophet_predictions,
+        "lightgbm": _get_lightgbm_predictions,
+    }
     assert (
         model in model_mappings.keys()
     ), f"Model must be one of {model_mappings.keys()}"
