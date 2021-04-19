@@ -180,7 +180,8 @@ def _get_lightgbm_cv(
 
     time_splits = list(time_splitter.split(time_grouper))
 
-    self.cross_validations = {}
+    # ensure this attr is reset between runs
+    self.cross_validations = []
 
     for fold, [train_index, test_index] in enumerate(time_splits):
 
@@ -203,19 +204,25 @@ def _get_lightgbm_cv(
             self=self,
             model_object=estimator_dict["best_estimator"],
             df=train,
-        )["yhat"]
+        )[f"predicted_{self.target}"]
 
         test_predictions = _predict_lightgbm(
             self=self, model_object=estimator_dict["best_estimator"], df=test
-        )["yhat"]
+        )[f"predicted_{self.target}"]
 
         (train_actuals, test_actuals,) = [
-            self._descale_target(array=df, transform_dict=transform_dict, target="y")
-            for df in [train["y"], test["y"]]
+            self._descale_target(
+                array=df, transform_dict=transform_dict, target=self.target
+            )
+            for df in [train[self.target], test[self.target]]
         ]
 
         (descaled_train_predictions, descaled_test_predictions,) = [
-            self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
+            self._descale_target(
+                array=df,
+                transform_dict=transform_dict,
+                target=f"predicted_{self.target}",
+            )
             for df in [
                 train_predictions,
                 test_predictions,
@@ -245,6 +252,7 @@ def _grid_search_lightgbm_params(
     **kwargs,
 ):
     # TODO need to use transform_dict to descale predictions
+    # TODO doesn't take kwargs
     """
     Cross-validate a lightgbm pipeline and return the best estimator
     """
@@ -253,16 +261,15 @@ def _grid_search_lightgbm_params(
     search_dict = {"grid": GridSearchCV, "random": RandomizedSearchCV}
 
     estimator, scorer = estimator_dict[self.model]
-    cv_function = search_dict[self.search_strategy]
+    cv_function = search_dict[search_strategy]
 
     X, y = _split_frame(training_data, self.target)
 
     args = {
-        "estimator": estimator,
-        "scorer": scorer,
+        "estimator": estimator(),
+        "scoring": scorer,
         "cv": splitter(),
         "param_distributions": params,
-        **kwargs,
     }
 
     # sklearn's different CV functions take different arg names
@@ -1174,8 +1181,12 @@ def _predict_lightgbm(
                 periods=future_periods,
                 hierarchy=hierarchy,
             )
+    else:
+        df = df.copy(deep=True)
 
-    df[f"predicted_{self.target}"] = model_object.predict(df)
+    df = df.drop(self.target, axis=1, errors="ignore")
+
+    df.loc[:, f"predicted_{self.target}"] = model_object.predict(df)
 
     return df
 
@@ -1315,7 +1326,7 @@ def _predict_prophet(
             raise ValueError("Dataframe has no rows.")
         df = model_object.setup_dataframe(df.copy())
 
-    df["trend"] = model_object.predict_trend(df)
+    df.loc[:, "trend"] = model_object.predict_trend(df)
     seasonal_components = model_object.predict_seasonal_components(df)
     if model_object.uncertainty_samples:
         intervals = model_object.predict_uncertainty(df)
