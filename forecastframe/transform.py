@@ -392,24 +392,36 @@ def encode_categoricals(self):
     )
 
 
-def decode_categoricals(self):
+def decode_categoricals(self, data=None):
     """
     Decode categorical encodings using the dictionary saved by
     encode_categoricals()
+
+    Parameters
+    ----------
+    data: pd.DataFrame, default None
+        If None, decodes the categoricals in self.data and self.sample
     """
-    assert (
-        self.categorical_keys
-    ), "Please use .encode_categoricals() before trying to decode."
+
+    # return dataframe immediately if no encoding key exists
+    if not self.categorical_keys:
+        return data
 
     columns_to_decode = list(self.categorical_keys.keys())
 
-    self.data[columns_to_decode] = self.data[columns_to_decode].apply(
-        lambda x: x.replace(self.categorical_keys[x.name])
-    )
+    if data is None:
+        self.data[columns_to_decode] = self.data[columns_to_decode].apply(
+            lambda x: x.replace(self.categorical_keys[x.name])
+        )
 
-    self.sample[columns_to_decode] = self.sample[columns_to_decode].apply(
-        lambda x: x.replace(self.categorical_keys[x.name])
-    )
+        self.sample[columns_to_decode] = self.sample[columns_to_decode].apply(
+            lambda x: x.replace(self.categorical_keys[x.name])
+        )
+    else:
+        data[columns_to_decode] = data[columns_to_decode].apply(
+            lambda x: x.replace(self.categorical_keys[x.name])
+        )
+        return data
 
 
 def fill_time_gaps(self, *args, **kwargs):

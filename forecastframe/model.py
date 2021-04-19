@@ -1000,9 +1000,6 @@ def _make_future_dataframe(
     dates = dates[dates > last_date]  # Drop start if equals last_date
     dates = dates[:periods]  # Return correct number of periods
 
-    if include_history:
-        dates = np.concatenate((np.array(model_object.history.index), dates))
-
     if hierarchy:
         from itertools import product
 
@@ -1020,12 +1017,20 @@ def _make_future_dataframe(
             columns=hierarchy + [date_name],
         )
 
+        output_df[self.target] = None
+        output_df.set_index(self.datetime_column, inplace=True)
+
     else:
-        output_df = pd.DataFrame({date_name: dates})
+        output_df = pd.DataFrame({date_name: dates, self.target: [None] * len(dates)})
+        output_df.set_index(self.datetime_column, inplace=True)
 
-    output_df
+    if include_history:
+        output_df = pd.concat([model_object.history, output_df], axis=0)
 
-    return output_df
+    output_df = _run_feature_engineering(self=self, data=output_df)
+
+    # Don't keep the target so we don't have to worry about leaking
+    return output_df.drop(self.target, axis=1)
 
 
 def _fit_lightgbm(data, target, model_type="regression", **kwargs):
@@ -1047,7 +1052,7 @@ def _fit_lightgbm(data, target, model_type="regression", **kwargs):
 
     model_object.fit(X, y)
 
-    model_object.history = X
+    model_object.history = data
 
     return model_object
 
@@ -1067,9 +1072,7 @@ def _predict_lightgbm(
                 model_object=model_object,
                 periods=future_periods,
                 hierarchy=hierarchy,
-            ).set_index(self.datetime_column)
-
-    print(f"pred cols {df.columns}")
+            )
 
     df[f"predicted_{self.target}"] = model_object.predict(df)
 
@@ -1172,6 +1175,8 @@ def _fit_prophet(data, *args, **kwargs):
 
     model = model.fit(data)
 
+    model.history = data
+
     return model
 
 
@@ -1225,28 +1230,29 @@ def _predict_prophet(
     return output_df
 
 
-def get_predictions(self, columns_to_keep=None):
+def get_predictions(self):
     """
-    Removes unnecessary columns from predictions dataframe
-
-    Parameters
-    ----------
-
-    columns_to_keep: List[str], default ["trend", "yhat_upper", "yhat_lower", "yhat"]
-        The column you'd like to keep from the output dataframe stored in self.predictions
+    Removes unnecessary columns from predictions dataframe and outputs the result for the user
     """
-    data = _merge_actuals(self)
+    assert (
+        self.model
+    ), "Please run .predict or .cross-validate before callign this function"
 
-    if columns_to_keep is None:
-        columns_to_keep = [
+    col_dict = {
+        "prophet": [
             "trend",
             f"predicted_{self.target}",
             f"predicted_{self.target}_upper",
             f"predicted_{self.target}_lower",
-        ]
+            self.target,
+        ],
+        "lightgbm": [f"predicted_{self.target}", self.target],
+    }
 
-        if self.hierarchy:
-            columns_to_keep = columns_to_keep + self.hierarchy
+    columns_to_keep = col_dict[self.model]
+
+    if self.hierarchy:
+        columns_to_keep = columns_to_keep + self.hierarchy
 
     return self.predictions[columns_to_keep]
 
@@ -1439,8 +1445,6 @@ def _get_lightgbm_predictions(self, future_periods, model_type="regression", **k
 
     model_object = _fit_lightgbm(data=df, target=self.target, **kwargs)
 
-    print(f"input columns: {model_object.feature_name_}")
-
     output = _predict_lightgbm(
         self=self,
         model_object=model_object,
@@ -1452,9 +1456,7 @@ def _get_lightgbm_predictions(self, future_periods, model_type="regression", **k
         output, transform_dict=transform_dict, target=f"predicted_{self.target}"
     )
 
-    result_dict = {"estimator": estimator}
-
-    return output, result_dict
+    return output, model_object
 
 
 def _get_prophet_predictions(self, future_periods, **kwargs):
@@ -1464,10 +1466,10 @@ def _get_prophet_predictions(self, future_periods, **kwargs):
 
     processed_df = _preprocess_prophet_names(self=self, df=df)
 
-    estimator = _fit_prophet(data=processed_df, **kwargs)
+    model_object = _fit_prophet(data=processed_df, **kwargs)
 
     predictions = _predict_prophet(
-        model_object=estimator,
+        model_object=model_object,
         future_periods=future_periods,
         hierarchy=self.hierarchy,
     )
@@ -1478,14 +1480,10 @@ def _get_prophet_predictions(self, future_periods, **kwargs):
         output, transform_dict=transform_dict, target=f"predicted_{self.target}"
     )
 
-    result_dict = {"estimator": estimator}
-
-    return output, result_dict
+    return output, model_object
 
 
-def predict(
-    self, model="prophet", future_periods=None, return_results=False, *args, **kwargs
-):
+def predict(self, model="prophet", future_periods=None, *args, **kwargs):
     """
     Predict the future using the data stored in your fframe
 
@@ -1501,20 +1499,26 @@ def predict(
         "prophet": _get_prophet_predictions,
         "lightgbm": _get_lightgbm_predictions,
     }
+
     assert (
         model in model_mappings.keys()
     ), f"Model must be one of {model_mappings.keys()}"
 
+    # TODO handle different encoding strategies
+    self.encode_categoricals()
+
     modeling_function = model_mappings[model]
-    output, result_dict = modeling_function(
+    output, model_object = modeling_function(
         self=self, future_periods=future_periods, *args, **kwargs
     )
 
-    self.predictions = output
-    self.results = result_dict
+    output = _merge_actuals(self, output)
 
-    if return_results:
-        return output
+    decoded_output = self.decode_categoricals(data=output)
+
+    self.predictions = decoded_output
+    self.model_object = model_object
+    self.model = model
 
 
 def cross_validate(
@@ -1570,14 +1574,14 @@ def cross_validate(
     )
 
 
-def _merge_actuals(self):
+def _merge_actuals(self, prediction_df):
     """
-    Merge your actuals column back with your predictions df
+    Merge your actuals column back with your predictions and save in fframe.predictions
 
     NOTE: Doesn't join instances where actuals are null
     """
     if self.hierarchy:
-        data = self.predictions.loc[:, [f"predicted_{self.target}"] + self.hierarchy]
+        data = prediction_df.loc[:, [f"predicted_{self.target}"] + self.hierarchy]
         merged_values = data.merge(
             self.data.loc[
                 ~self.data[self.target].isnull(), [self.target] + self.hierarchy
@@ -1586,14 +1590,14 @@ def _merge_actuals(self):
             how="outer",
         )
     else:
-        merged_values = self.predictions.loc[:, [f"predicted_{self.target}"]].merge(
+        merged_values = prediction_df.loc[:, [f"predicted_{self.target}"]].merge(
             self.data.loc[~self.data[self.target].isnull(), self.target],
             on=[self.datetime_column],
             how="outer",
         )
 
     assert len(merged_values) == len(
-        self.predictions
+        prediction_df
     ), "Something went wrong when merging your actuals back to your predictions"
 
     return merged_values
@@ -1671,7 +1675,6 @@ def get_errors(self, describe=True):
     describe: bool, default True
         If True, returns a summary of the error metric distribution rather than the actual errors.
     """
-    data = _merge_actuals(self)
 
     data = _calc_errors(self=self, data=data, describe=describe)
 
