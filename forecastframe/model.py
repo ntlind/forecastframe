@@ -238,7 +238,9 @@ def _get_lightgbm_cv(
             test_actuals,
         ]
 
-        self.cross_validations.append({"train": train, "test": test, **estimator_dict})
+        results = {"train": train, "test": test, **estimator_dict}
+
+        self.cross_validations.append(results)
 
 
 def _grid_search_lightgbm_params(
@@ -318,11 +320,13 @@ def process_outputs(self, groupers=None):
             # TODO error was being thrown for reindexing from duplicate axis, but the bigger problem is that IS_actuals has a different order than the
             # input data. It's probably too dangerous to copy over the values
 
-            output_df["Values"] = self.results[fold][
+            output_df.loc[:, "Values"] = self.results[fold][
                 f"{sample}_{designator}"
             ].reset_index(drop=True)
-            output_df["Date"] = self.results[fold][f"{sample}_{designator}"].index
-            output_df["Label"] = np.resize([f"{designator}"], len(output_df))
+            output_df.loc[:, "Date"] = self.results[fold][
+                f"{sample}_{designator}"
+            ].index
+            output_df.loc[:, "Label"] = np.resize([f"{designator}"], len(output_df))
 
             return output_df
 
@@ -341,7 +345,7 @@ def process_outputs(self, groupers=None):
                 groupers = _ensure_is_list(groupers)
                 label = "_".join(groupers)
 
-                self.processed_outputs[f"{fold}_{sample}_{label}"] = (
+                self.processed_outputs.loc[:, f"{fold}_{sample}_{label}"] = (
                     data.groupby(groupers + ["Label", "Date"]).sum().reset_index()
                 )
 
