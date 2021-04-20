@@ -301,7 +301,7 @@ def plot_shap_decision(self, slicer=None):
     )
 
 
-def plot_shap_importance(self, plot_type):
+def plot_shap_importance(self, plot_type="dot"):
     """
     Plot a SHAP feature importance plot.
 
