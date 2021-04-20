@@ -21,6 +21,39 @@ from forecastframe.utilities import (
 )
 
 
+def _set_forecast_minimum(self, floor):
+    """
+    Ensure that forecasts don't drop below floor
+    """
+    pred_cols = [col for col in self.predictions.columns if "predicted_" in col]
+
+    self.predictions[pred_cols] = self.predictions[pred_cols].where(
+        self.predictions[pred_cols] > floor, floor
+    )
+
+
+def _add_simple_confidence_intervals(self, alpha=0.975):
+    """
+    Add lightweight confidence intervals to any .predictions dataframe. For more accurate results, you should use a model with built-in confidence         interval capabilities (prophet) or a quantile regressor (lightgbm)
+    """
+    import scipy.stats as st
+
+    multiplier = st.norm.ppf(alpha)
+
+    multiplied_standard_error = (
+        self.predictions[f"predicted_{self.target}"].sem() * multiplier
+    )
+
+    print(multiplied_standard_error)
+
+    self.predictions[f"predicted_{self.target}_upper"] = (
+        self.predictions[f"predicted_{self.target}"] + multiplied_standard_error
+    )
+    self.predictions[f"predicted_{self.target}_lower"] = (
+        self.predictions[f"predicted_{self.target}"] - multiplied_standard_error
+    )
+
+
 def _split_frame(data: pd.DataFrame, target: str):
     """Helper to split X from y for training"""
     X = data.drop(target, inplace=False, axis=1)
