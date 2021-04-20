@@ -133,6 +133,35 @@ def _get_scaling_function(func_string: str):
     return function_dict[func_string]
 
 
+def _merge_actuals(self, prediction_df):
+    """
+    Merge your actuals column back with your predictions and save in fframe.predictions
+
+    NOTE: Doesn't join instances where actuals are null
+    """
+    if self.hierarchy:
+        data = prediction_df.loc[:, [f"predicted_{self.target}"] + self.hierarchy]
+        merged_values = data.merge(
+            self.data.loc[
+                ~self.data[self.target].isnull(), [self.target] + self.hierarchy
+            ],
+            on=[self.datetime_column] + self.hierarchy,
+            how="outer",
+        )
+    else:
+        merged_values = prediction_df.loc[:, [f"predicted_{self.target}"]].merge(
+            self.data.loc[~self.data[self.target].isnull(), self.target],
+            on=[self.datetime_column],
+            how="outer",
+        )
+
+    assert len(merged_values) == len(
+        prediction_df
+    ), "Something went wrong when merging your actuals back to your predictions"
+
+    return merged_values
+
+
 def _get_lightgbm_cv(
     self,
     params: dict = None,
@@ -291,128 +320,6 @@ def _grid_search_lightgbm_params(
     return results
 
 
-def process_outputs(self, groupers=None):
-    """
-    For each fold and sample, create a stacked output dataframe with one "Label" for
-    "predictions" and another for "actuals". This dataframe is stored
-    in self.processed_outputs
-
-    Parameters
-    ----------
-    groupers : List[str], default None
-        Optional parameter to aggregate your predictions and actuals over some
-        hierarchy other than your fframe's hierarchy (e.g., by ["state", "category"]).
-        If None, uses self.hierarchy as your groupers.
-    """
-
-    def _stack_dataframes(sample, fold):
-        """Create a stacked dataframe from the data stored in results"""
-
-        def _get_model_df(sample, designator, fold):
-            assert sample in ["IS", "OOS"]
-            assert designator in ["predictions", "actuals"]
-
-            # start with hierarchy columns
-            output_df = self.results[fold][f"{sample}_input"][
-                self.hierarchy
-            ].reset_index(drop=True)
-
-            # TODO error was being thrown for reindexing from duplicate axis, but the bigger problem is that IS_actuals has a different order than the
-            # input data. It's probably too dangerous to copy over the values
-
-            output_df.loc[:, "Values"] = self.results[fold][
-                f"{sample}_{designator}"
-            ].reset_index(drop=True)
-            output_df.loc[:, "Date"] = self.results[fold][
-                f"{sample}_{designator}"
-            ].index
-            output_df.loc[:, "Label"] = np.resize([f"{designator}"], len(output_df))
-
-            return output_df
-
-        predictions = _get_model_df(sample=sample, designator="predictions", fold=fold)
-        actuals = _get_model_df(sample=sample, designator="actuals", fold=fold)
-        return pd.concat([predictions, actuals], axis=0)
-
-    for fold, _ in self.results.items():
-        for sample in ["IS", "OOS"]:
-
-            # Store the raw, ungrouped data
-            data = _stack_dataframes(sample=sample, fold=fold)
-            self.processed_outputs[f"{fold}_{sample}"] = data
-
-            if groupers:
-                groupers = _ensure_is_list(groupers)
-                label = "_".join(groupers)
-
-                self.processed_outputs.loc[:, f"{fold}_{sample}_{label}"] = (
-                    data.groupby(groupers + ["Label", "Date"]).sum().reset_index()
-                )
-
-
-def filter_outputs(self, groupers=None, filter_func=lambda x: x.head(10)):
-    """
-    Filter all of your processed outputs (created using the processed_outputs method)
-    to only store the .head() or .tail() largest results when your actuals are summed by
-    groupers.
-
-    Parameters
-    ----------
-    groupers : List[str], default None
-        Optional parameter to aggregate your predictions and actuals over some
-        hierarchy other than your fframe's hierarchy (e.g., by ["state", "category"]).
-        If None, uses self.hierarchy as your groupers.
-    filter_func: function, default lambda x: x.head(10)
-        A function to use for filtering. The default will only store the top 10 largest results
-        when aggregated by groupers.
-    """
-
-    def _get_index_to_filter_on(fframe, data, groupers, filter_func):
-        """
-        Calculates the correct index to filter on according to filter_func
-        """
-
-        if not groupers:
-            groupers = fframe.hierarchy
-
-        filtering_df = (
-            data[data["Label"] == "actuals"]
-            .groupby(groupers)
-            .sum()
-            .sort_values(by="Values", ascending=False)
-        )
-        return filter_func(filtering_df).index
-
-    assert (
-        self.processed_outputs
-    ), "Please call fframe.process_outputs before using this function"
-
-    for fold, _ in self.results.items():
-        for sample in ["IS", "OOS"]:
-            if groupers:
-                groupers = _ensure_is_list(groupers)
-                label = "_".join(groupers)
-
-                name = f"{fold}_{sample}_{label}"
-            else:
-                name = f"{fold}_{sample}"
-
-            data = self.processed_outputs[name]
-
-            filtering_index = _get_index_to_filter_on(
-                data=data, filter_func=filter_func, fframe=self, groupers=groupers
-            )
-
-            filtered_data = _filter_on_index(
-                data=data,
-                groupers=groupers if groupers else self.hierarchy,
-                filtering_index=filtering_index,
-            )
-
-            self.processed_outputs[name] = filtered_data
-            self.processed_outputs[f"{fold}_{sample}_filtering_index"] = filtering_index
-
-
 def _handle_scoring_func(scoring_func, **kwargs):
     """
     Handles cases where we want to pass a scoring function, rather than the
@@ -422,160 +329,6 @@ def _handle_scoring_func(scoring_func, **kwargs):
         return scoring_func(**kwargs)
     else:
         return scoring_func
-
-
-def predict_lgbm(self, predict_df):
-    """
-    Predict future occurences of an input df
-
-    Parameters
-    ----------
-    predict_df: pd.DataFrame
-        The dataframe you'd like to run predictions on.
-    """
-
-    assert set(predict_df.columns).issubset(set(self.data.columns))
-
-    scaled_df, transform_dict = self._run_scaler_pipeline(predict_df)
-
-    engineered_df = self._run_feature_engineering(scaled_df)
-
-    predictions = pd.Series(
-        self.results["best_estimator"].predict(predict_df),
-        index=predict_df[self.datetime_column],
-    )
-
-    descaled_predictions = self._descale_target(predictions, transform_dict)
-
-    predict_df["predictions"] = descaled_predictions
-    predict_df["scaled_predictions"] = predictions
-
-    return predict_df
-
-
-# def cross_validate_lgbm(
-#     self,
-#     params: dict = None,
-#     estimator_func: object = _get_tweedie_lgbm,
-#     splitter: object = LeaveOneGroupOut,
-#     cv_func: object = RandomizedSearchCV,
-#     folds: int = 5,
-#     gap: int = 0,
-#     n_jobs: int = -1,
-#     verbose: int = 0,
-#     n_iter: int = 4,
-#     scoring_func: object = None,
-#     **kwargs,
-# ):
-#     """
-#     Splits your data into [folds] rolling folds, fits the best estimator to each fold,
-#     and creates out-of-sample predictions for analysis.
-
-#     Parameters
-#     ----------
-#     params : dict, default None
-#         A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
-#     estimator_func : function, default _get_quantile_lgbm
-#         A function to create the LGBM estimator that you're intersted in using
-#     splitter : object, default LeaveOneGroupOut
-#         The strategy that sklearn uses to split your cross-validation set. Defaults to
-#         LeaveOneGroupOut.
-#     cv_func : object, default RandomizedSearchCV
-#         The search algorithm used to find the best parameters. We recommend
-#         RandomizedSearchCV or GridSearchCV from sklearn.
-#     folds : int, default 5
-#         Number of folds to use during cross-valdation
-#     gap : int, default 0
-#         Number of periods to skip in between test and training folds.
-#     n_jobs : int, default -1
-#         The processor parameter to pass to LightGBM. Defaults to using all cores.
-#     verbose : int, default 0,
-#         The verbose param to pass to LightGBM
-#     n_iter : int, default 10
-#         The number of iterations to run your CV search over
-#     scoring_func: function, default None
-#         The scoring parameter or custom scoring function to use.
-#     """
-
-#     if not params:
-#         params = get_lgb_params("light")
-
-#     self.compress()
-
-#     self.data = self.data.sort_index()
-
-#     time_grouper = self.data.index
-
-#     time_splitter = TimeSeriesSplit(n_splits=folds, gap=gap)
-
-#     time_splits = list(time_splitter.split(time_grouper))
-
-#     results = dict()
-
-#     for fold, [train_index, test_index] in enumerate(time_splits):
-#         estimator = estimator_func(**kwargs)
-#         scoring = _handle_scoring_func(scoring_func, **kwargs)
-
-#         train, test, transform_dict = self._split_scale_and_feature_engineering(
-#             train_index, test_index
-#         )
-
-#         train, test = self._run_ensembles(train=train, test=test)
-
-#         X_train, y_train = _split_frame(train, self.target)
-#         X_test, y_test = _split_frame(test, self.target)
-
-#         estimator_dict = _calc_best_estimator(
-#             X=X_train,
-#             y=y_train,
-#             estimator=estimator,
-#             splitter=splitter,
-#             cv_func=cv_func,
-#             params=params,
-#             folds=folds,
-#             n_jobs=n_jobs,
-#             verbose=verbose,
-#             n_iter=n_iter,
-#             scoring=scoring,
-#         )
-
-#         train_predictions = pd.Series(
-#             estimator_dict["best_estimator"].predict(X_train), index=X_train.index
-#         )
-#         test_predictions = pd.Series(
-#             estimator_dict["best_estimator"].predict(X_test), index=X_test.index
-#         )
-
-#         (
-#             train_actuals,
-#             test_actuals,
-#             descaled_train_predictions,
-#             descaled_test_predictions,
-#         ) = [
-#             self._descale_target(df, transform_dict)
-#             for df in [y_train, y_test, train_predictions, test_predictions]
-#         ]
-
-#         test_error = np.round(estimator_dict["best_estimator"].score(X_test, y_test), 4)
-
-#         results.update(
-#             {
-#                 fold: {
-#                     "best_estimator": estimator_dict["best_estimator"],
-#                     "OOS_predictions": descaled_test_predictions,
-#                     "OOS_actuals": test_actuals,
-#                     "OOS_input": X_test,
-#                     "IS_predictions": descaled_train_predictions,
-#                     "IS_actuals": train_actuals,
-#                     "IS_input": X_train,
-#                     "best_IS_error": estimator_dict["best_error"],
-#                     "best_OOS_error": test_error,
-#                     "best_params": estimator_dict["best_params"],
-#                 }
-#             }
-#         )
-
-#     self.results = results
 
 
 def _split_on_date(data, date):
@@ -787,113 +540,10 @@ def _calc_error_metric(
     return error_function(actuals=actuals, predictions=predictions, **kwargs)
 
 
-def calc_error_metrics(
-    self,
-    fold: int,
-    metrics: list = ["AE", "APE", "SE"],
-    replace_infinities: bool = True,
-    groupers=None,
-    date_range=None,
-):
-    """
-    Calculate a dataframe containing several different error metrics for a given fold.
-
-    Parameters
-    ----------
-    fold : int
-        The fold for which to calculate error metrics for.
-    metrics : List[str], default ["AE", "APE", "APA", "SE"]
-        The metrics you'd like to calculate. Should contain only "APA", "APE",
-        "AE", "SE", "Actuals", or "Predictions".
-    replace_infinities : bool, default True
-        If True, replace infinite values with missings (common with some error metrics)
-    groupers : list, default None
-        If a list of groupers is passed, it will calculate error metrics for a given
-        set of aggregated predictions stored in processed_outputs.
-    date_range : tuple, default None
-        If tuple of (start_date, end_date) is passed, will only calculate error metrics for
-        the specified date range (inclusive)
-    """
-    import functools
-
-    def _get_col_column_name(designator):
-        return designator.replace("IS_", "In-Sample ").replace("OOS_", "Out-of-Sample ")
-
-    function_mapping_dict = {
-        "APE": _calc_APE,
-        "AE": _calc_AE,
-        "SE": _calc_SE,
-        "Actuals": lambda actuals, predictions: actuals,
-        "Predictions": lambda actuals, predictions: predictions,
-    }
-
-    outputs = []
-    for sample in ["IS", "OOS"]:
-
-        data = _get_processed_outputs(
-            self=self, sample=sample, groupers=groupers, fold=fold
-        )
-
-        if date_range:
-            start_date, end_date = date_range
-            data = data[(data.index >= start_date) & (data.index <= end_date)]
-
-        actuals = data[data["Label"] == "actuals"]["Values"].values
-        predictions = data[data["Label"] == "predictions"]["Values"].values
-
-        for metric in ["Actuals", "Predictions"] + metrics:
-            calculation_series = pd.Series(
-                function_mapping_dict[metric](
-                    actuals=actuals,
-                    predictions=predictions,
-                )
-            )
-
-            if replace_infinities:
-                calculation_series = calculation_series.replace(
-                    [-np.inf, np.inf], np.nan
-                )
-
-            col_name = _get_col_column_name(f"{sample}_{metric}")
-
-            outputs.append(pd.Series(calculation_series, name=col_name))
-
-    # Fills series with nulls because OOS is shorter than IS
-    return pd.concat(outputs, axis=1)
+# TODO sum error metrics according to some groupers
 
 
-def calc_all_error_metrics(self, groupers=None, date_range=None):
-    """
-    Calculate a dictionary of error metrics, with each key being a fold of
-    the cross_validation.
-
-    Parameters
-    ----------
-    groupers : list, default None
-        If a list of groupers is passed, it will calculate error metrics for a given
-        set of aggregated predictions stored in processed_outputs.
-    date_range : tuple, default None
-        If tuple of (start_date, end_date) is passed, will only calculate error metrics for
-        the specified date range (inclusive)
-    """
-
-    fold_dict = dict()
-
-    for fold, _ in self.results.items():
-        fold_dict[fold] = self.calc_error_metrics(
-            fold=fold, groupers=groupers, date_range=date_range
-        )
-
-    date_suffix = (
-        f"_{date_range[0].strftime('%Y-%m-%d')}_{date_range[1].strftime('%Y-%m-%d')}"
-        if date_range
-        else ""
-    )
-
-    setattr(self, f"fold_errors{date_suffix}", fold_dict)
-
-
-def custom_asymmetric_train(y_pred, y_true, loss_multiplier=0.9):
+def _custom_asymmetric_train(y_pred, y_true, loss_multiplier=0.9):
     """
     Custom assymetric loss function that penalizes negative residuals more
     than positive residuals. Used to win the M5 competition.
@@ -905,7 +555,7 @@ def custom_asymmetric_train(y_pred, y_true, loss_multiplier=0.9):
     return grad, hess
 
 
-def custom_asymmetric_valid(y_pred, y_true, loss_multiplier=0.9):
+def _custom_asymmetric_valid(y_pred, y_true, loss_multiplier=0.9):
     """
     Custom assymetric loss function that penalizes negative residuals more
     than positive residuals. Used to win the M5 competition.
@@ -956,30 +606,6 @@ def _run_scaler_pipeline(self, df: pd.DataFrame, augment_feature_list: bool = Fa
     else:
         consolidated_transform_dict = {}
         return [df, consolidated_transform_dict]
-
-
-def _run_ensembles(self, train, test):
-    """
-    Run all stored modeling ensembles in self.ensemble_list on some input df.
-    For example: if you called calc_prophet_predictions in your modeling pipeline,
-    then _run_ensembles will generate predictions for all of your test and training data.
-    """
-
-    assert isinstance(train, pd.DataFrame) & isinstance(test, pd.DataFrame)
-
-    if not self.ensemble_list:
-        return (train, test)
-
-    # initialize a new attribute to store the data
-    attribute = "inprogress"
-    setattr(self, attribute, train)
-
-    for ensemble in self.ensemble_list:
-        func, args, kwargs = ensemble
-
-        train, test = func(self, train_df=train, test_df=test, *args, **kwargs)
-
-    return (train, test)
 
 
 def _run_feature_engineering(self, data):
@@ -1691,35 +1317,6 @@ def cross_validate(
             "best_params"
         ],  # pass the best parameters found via cross-validation for the last fold
     )
-
-
-def _merge_actuals(self, prediction_df):
-    """
-    Merge your actuals column back with your predictions and save in fframe.predictions
-
-    NOTE: Doesn't join instances where actuals are null
-    """
-    if self.hierarchy:
-        data = prediction_df.loc[:, [f"predicted_{self.target}"] + self.hierarchy]
-        merged_values = data.merge(
-            self.data.loc[
-                ~self.data[self.target].isnull(), [self.target] + self.hierarchy
-            ],
-            on=[self.datetime_column] + self.hierarchy,
-            how="outer",
-        )
-    else:
-        merged_values = prediction_df.loc[:, [f"predicted_{self.target}"]].merge(
-            self.data.loc[~self.data[self.target].isnull(), self.target],
-            on=[self.datetime_column],
-            how="outer",
-        )
-
-    assert len(merged_values) == len(
-        prediction_df
-    ), "Something went wrong when merging your actuals back to your predictions"
-
-    return merged_values
 
 
 def _get_error_func_dict():

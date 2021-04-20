@@ -73,47 +73,6 @@ class ForecastFrame:
 
         return df.set_index(self.datetime_column)
 
-    from forecastframe.feature_engineering import (
-        calc_days_since_release,
-        calc_datetime_features,
-        lag_features,
-        calc_statistical_features,
-        calc_ewma,
-        calc_percent_relative_to_threshold,
-        calc_percent_change,
-        join_demographics,
-    )
-
-    from forecastframe.transform import (
-        fill_time_gaps,
-        fill_missings,
-        log_features,
-        standardize_features,
-        normalize_features,
-        compress,
-        descale_features,
-        encode_categoricals,
-        decode_categoricals,
-        correct_negatives,
-        _descale_target,
-    )
-
-    from forecastframe.model import (
-        predict,
-        cross_validate,
-        process_outputs,
-        calc_all_error_metrics,
-        filter_outputs,
-        calc_error_metrics,
-        get_predictions,
-        get_errors,
-        get_cross_validation_errors,
-        _run_scaler_pipeline,
-        _split_scale_and_feature_engineering,
-        _run_feature_engineering,
-        _run_ensembles,
-    )
-
     from forecastframe.io import save_fframe
 
     from forecastframe.utilities import (
@@ -134,9 +93,44 @@ class ForecastFrame:
         _trace_calls,
     )
 
+    from forecastframe.transform import (
+        fill_time_gaps,
+        fill_missings,
+        log_features,
+        standardize_features,
+        normalize_features,
+        compress,
+        descale_features,
+        encode_categoricals,
+        decode_categoricals,
+        correct_negatives,
+        _descale_target,
+    )
+
+    from forecastframe.feature_engineering import (
+        calc_days_since_release,
+        calc_datetime_features,
+        lag_features,
+        calc_statistical_features,
+        calc_ewma,
+        calc_percent_relative_to_threshold,
+        calc_percent_change,
+        join_demographics,
+    )
+
+    from forecastframe.model import (
+        predict,
+        cross_validate,
+        get_predictions,
+        _run_scaler_pipeline,
+        _split_scale_and_feature_engineering,
+        _run_feature_engineering,
+    )
+
     from forecastframe.interpret import (
+        get_errors,
+        get_cross_validation_errors,
         summarize_cv,
-        summarize_performance_over_time,
         summarize_shap,
         get_sorted_shap_values,
         plot_shap_decision,
