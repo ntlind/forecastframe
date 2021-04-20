@@ -277,7 +277,7 @@ def summarize_shap(self):
     ----------
     """
 
-    sorted_shap_values = self.calc_sorted_shap_features()
+    sorted_shap_values = self.get_sorted_shap_values()
 
     sorted_features = sorted_shap_values["feature"].values
     top_features_text = f"{sorted_features[0]}, {sorted_features[1]}, {sorted_features[2]}, and {sorted_features[3]}"
@@ -393,34 +393,33 @@ def summarize_performance_over_time(self, error_type="APE", period="month"):
 
 
 ## SHAP
-def calc_shap_values(self, fold=None, sample="OOS"):
+def _calc_shap_values(self, data=None):
+    """
+    Calculaute SHAP values for use in various plots
+    """
+    if data is None:
+        data = ff.model._get_data_to_analyze(self=self).drop(
+            [self.target, f"predicted_{self.target}"], axis=1
+        )
 
-    if not fold:
-        fold = _get_max_fold(self)
-
-    explainer = shap.TreeExplainer(self.results[fold]["best_estimator"])
-
-    input_df = self.results[fold][f"{sample}_input"]
-    shap_values = explainer.shap_values(input_df)
-
-    setattr(self, "shap_explainer_values", (explainer, shap_values, input_df))
-
-
-def _assert_and_unpack_shap_values(self):
-    assert (
-        self.shap_explainer_values
-    ), "Please calculate your SHAP values before plotting them."
-
-    return self.shap_explainer_values
+    explainer = shap.TreeExplainer(self.model_object)
+    self.shap = {
+        "explainer": explainer,
+        "shap_values": explainer.shap_values(data),
+        "data": data,
+    }
 
 
-def calc_sorted_shap_features(self):
+def get_sorted_shap_values(self):
+    if not hasattr(self, "shap"):
+        _calc_shap_values(self=self)
 
-    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+    data = self.shap["data"]
+    shap_values = self.shap["shap_values"]
 
     mean_shap_values = np.abs(shap_values).mean(0)
 
-    feature_list = input_df.columns[np.argsort(np.abs(shap_values).mean(0))][::-1]
+    feature_list = data.columns[np.argsort(np.abs(mean_shap_values))][::-1]
     feature_values = mean_shap_values[np.argsort(mean_shap_values)][::-1]
 
     return pd.DataFrame.from_dict({"feature": feature_list, "value": feature_values})
@@ -430,41 +429,55 @@ def _get_default_slicer(input_df):
     return list(range(min(len(input_df), 1000)))
 
 
-def plot_shap_decision(self, slicer=None, show=True, *args, **kwargs):
+def plot_shap_decision(self, slicer=None):
+    """
+    Plot a SHAP feature decision plot.
 
-    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+    Parameters
+    -------------
+    slicer : List[int], default None,
+        A slace of rows to evaluate. Default uses the first 1000 rows.
+    """
+    if not hasattr(self, "shap"):
+        _calc_shap_values(self=self)
+
+    data = self.shap["data"]
+    shap_values = self.shap["shap_values"]
+    explainer = self.shap["explainer"]
 
     if slicer is None:
-        slicer = _get_default_slicer(input_df)
+        slicer = _get_default_slicer(data)
 
     return shap.decision_plot(
-        explainer.expected_value,
-        shap_values[slicer],
-        input_df.iloc[slicer, :],
-        show=show,
-        *args,
-        **kwargs,
+        explainer.expected_value, shap_values[slicer], data.iloc[slicer, :]
     )
 
 
-def plot_shap_importance(self, show=True, *args, **kwargs):
+def plot_shap_importance(self, plot_type):
     """
     Plot a SHAP feature importance plot.
 
-    Additional Params
-    -------------
+    Parameters
+    ----------
     plot_type : str, default = "dot",
         What type of summary plot to produce. Note that "compact_dot" is only used for SHAP interaction values. Options are "dot" (default for single output), "bar" (default for multi-output), "violin", or "compact_dot".
     """
-    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+    if not hasattr(self, "shap"):
+        _calc_shap_values(self=self)
 
-    return shap.summary_plot(shap_values, input_df, show=show, *args, **kwargs)
+    data = self.shap["data"]
+    shap_values = self.shap["shap_values"]
+
+    return shap.summary_plot(shap_values, data, plot_type=plot_type)
 
 
-def plot_shap_dependence(
-    self, column_name, color_column=None, show=True, *args, **kwargs
-):
-    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+def plot_shap_dependence(self, column_name, color_column=None):
+
+    if not hasattr(self, "shap"):
+        _calc_shap_values(self=self)
+
+    data = self.shap["data"]
+    shap_values = self.shap["shap_values"]
 
     if not color_column:
         color_column = column_name
@@ -472,31 +485,35 @@ def plot_shap_dependence(
     return shap.dependence_plot(
         column_name,
         shap_values,
-        input_df,
+        data,
         interaction_index=color_column,
-        show=show,
-        *args,
-        **kwargs,
     )
 
 
-def plot_shap_cohort(self, cohort, show=True, *args, **kwargs):
+def plot_shap_cohort(self, cohort):
     raise NotImplementedError(
         "Requires shap.Explainer to work with lightGBM models. See here: \
         https://shap.readthedocs.io/en/latest/example_notebooks/api_examples/plots/bar.html"
     )
 
-    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+    # explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
 
-    cohort = list(input_df[cohort])
+    # cohort = list(input_df[cohort])
 
-    return shap.plots.bar(
-        shap_values.cohorts(cohort).abs.mean(0), show=show, *args, **kwargs
-    )
+    # return shap.plots.bar(
+    #     shap_values.cohorts(cohort).abs.mean(0), show=show, *args, **kwargs
+    # )
 
 
-def plot_shap_waterfall(self, row, *args, **kwargs):
-    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+def plot_shap_waterfall(self, row):
+    import shap
+
+    if not hasattr(self, "shap"):
+        _calc_shap_values(self=self)
+
+    data = self.shap["data"]
+    shap_values = self.shap["shap_values"]
+    explainer = self.shap["explainer"]
 
     # hack to get waterfall api to work with TreeExplainer
     class ShapObject:
@@ -508,28 +525,33 @@ def plot_shap_waterfall(self, row, *args, **kwargs):
 
     shap_object = ShapObject(
         base_values=explainer.expected_value,
-        values=explainer.shap_values(input_df)[row, :],
-        feature_names=input_df.columns,
-        data=input_df.iloc[row, :],
+        values=explainer.shap_values(data)[row, :],
+        feature_names=data.columns,
+        data=data.iloc[row, :],
     )
 
-    return shap.waterfall_plot(shap_object, *args, **kwargs)
+    return shap.waterfall_plot(shap_object)
 
 
 def plot_shap_force(self, slicer=None, show=False, *args, **kwargs):
+    import shap
+
     shap.initjs()
-    explainer, shap_values, input_df = _assert_and_unpack_shap_values(self)
+
+    if not hasattr(self, "shap"):
+        _calc_shap_values(self=self)
+
+    data = self.shap["data"]
+    shap_values = self.shap["shap_values"]
+    explainer = self.shap["explainer"]
 
     if slicer is None:
-        slicer = _get_default_slicer(input_df)
+        slicer = _get_default_slicer(data)
 
     return shap.force_plot(
         explainer.expected_value,
         shap_values[slicer, :],
-        input_df.iloc[slicer, :],
-        show=show,
-        *args,
-        **kwargs,
+        data.iloc[slicer, :],
     )
 
 

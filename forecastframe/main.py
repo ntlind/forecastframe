@@ -3,6 +3,9 @@ Base class for ForecastFrame
 """
 import pandas as pd
 
+# TODO deal with loc warnings
+pd.options.mode.chained_assignment = None  # default='warn'
+
 
 class ForecastFrame:
     """
@@ -97,7 +100,6 @@ class ForecastFrame:
 
     from forecastframe.model import (
         predict,
-        cross_validate_lgbm,
         cross_validate,
         process_outputs,
         calc_all_error_metrics,
@@ -136,13 +138,12 @@ class ForecastFrame:
         summarize_cv,
         summarize_performance_over_time,
         summarize_shap,
-        calc_shap_values,
+        get_sorted_shap_values,
         plot_shap_decision,
         plot_shap_force,
         plot_shap_importance,
         plot_shap_dependence,
         plot_shap_waterfall,
-        calc_sorted_shap_features,
         plot_components,
     )
 
