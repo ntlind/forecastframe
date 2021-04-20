@@ -246,7 +246,7 @@ def _calc_shap_values(self, data=None):
     Calculaute SHAP values for use in various plots
     """
     if data is None:
-        data = ff.model._get_data_to_analyze(self=self).drop(
+        data = _get_data_to_analyze(self=self).drop(
             [self.target, f"predicted_{self.target}"], axis=1
         )
 

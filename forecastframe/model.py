@@ -167,6 +167,7 @@ def _get_lightgbm_cv(
     params: dict = None,
     splitter: object = LeaveOneGroupOut,
     search_strategy: str = "random",
+    model_type: str = "regression",
     folds: int = 5,
     gap: int = 0,
     **kwargs,
@@ -182,17 +183,15 @@ def _get_lightgbm_cv(
     splitter : object, default LeaveOneGroupOut
         The strategy that sklearn uses to split your cross-validation set. Defaults to
         LeaveOneGroupOut.
+    search_strategy: str, default "random"
+        The cross-validation strategy to use for parameter tuning. Should be one of "grid" or "random".
+    model_type: str, default "regression
+        The type of lightgbm model to use. Should be one of "regression", "tweedie", or "quantile"
     folds : int, default 5
         Number of folds to use during cross-valdation
     gap : int, default 0
         Number of periods to skip in between test and training folds.
     """
-
-    valid_strategies = ["random", "grid"]
-
-    assert (
-        search_strategy in valid_strategies
-    ), f"search_strategy should be one of {valid_strategies}"
 
     import itertools
 
@@ -222,6 +221,7 @@ def _get_lightgbm_cv(
             self=self,
             training_data=train,
             search_strategy=search_strategy,
+            model_type=model_type,
             params=params,
             splitter=splitter,
             folds=folds,
@@ -276,6 +276,7 @@ def _grid_search_lightgbm_params(
     self,
     training_data,
     search_strategy,
+    model_type,
     params,
     splitter,
     folds,
@@ -287,17 +288,28 @@ def _grid_search_lightgbm_params(
     """
     Cross-validate a lightgbm pipeline and return the best estimator
     """
-    estimator_dict = {"lightgbm": (_get_regression_lgbm, None)}
+    model_dict = _get_lgbm_function_dict()
+
+    assert (
+        model_type in model_dict.keys()
+    ), f"model_type should be one of {model_dict.keys()}"
+
+    model_object = model_dict[model_type](**kwargs)
+
+    if model_type == "quantile":
+        scorer = _get_quantile_scorer(locals().get("quantile", 0.5))
+    else:
+        scorer = None
 
     search_dict = {"grid": GridSearchCV, "random": RandomizedSearchCV}
+    assert search_strategy in search_dict.keys()
 
-    estimator, scorer = estimator_dict[self.model]
     cv_function = search_dict[search_strategy]
 
     X, y = _split_frame(training_data, self.target)
 
     args = {
-        "estimator": estimator(),
+        "estimator": model_object,
         "scoring": scorer,
         "cv": splitter(),
         "param_distributions": params,
@@ -467,80 +479,6 @@ def _get_quantile_weights(
     """
     assert max(quantiles) >= 0 & min(quantiles <= 1)
     return dict(zip(quantiles, weights))
-
-
-def _calc_MAPE(actuals: np.array, predictions: np.array):
-    """Calculates the Mean Absolute Percent Error (MAPE) for two arrays."""
-
-    return np.mean(np.abs((actuals - predictions) / actuals))
-
-
-def _calc_MAPA(actuals: np.array, predictions: np.array, weights=None):
-    """Calculates the Mean Absolute Percent Accuracy (MAPA) for two arrays."""
-    return 1 - _calc_MAPE(actuals=actuals, predictions=predictions, weights=weights)
-
-
-def _calc_AE(actuals: np.array, predictions: np.array):
-    """Calculates the Absolute Error (AE) for two arrays."""
-    return np.abs(actuals - predictions)
-
-
-def _calc_APA(actuals: np.array, predictions: np.array):
-    """Calculates the Absolute Percent Accuracy (APA) for two arrays."""
-    return 1 - _calc_APE(actuals=actuals, predictions=predictions)
-
-
-def _calc_APE(actuals: np.array, predictions: np.array):
-    """Calculates the Absolute Percent Error (APE) for two arrays."""
-    return np.abs((actuals - predictions) / actuals)
-
-
-def _calc_SE(actuals: np.array, predictions: np.array):
-    """Calculates the squared error (SE) for two arrays."""
-    return (actuals - predictions) ** 2
-
-
-def _calc_MSE(actuals: np.array, predictions: np.array, weights=None):
-    """Calculates the Mean Squared Error (MAPE) for two arrays."""
-    from sklearn.metrics import mean_squared_error
-
-    return mean_squared_error(
-        y_true=actuals,
-        y_pred=predictions,
-        sample_weight=weights,
-        multioutput="raw_values",
-    )
-
-
-def _calc_RMSE(actuals: np.array, predictions: np.array, weights=None):
-    """Calculates the Root Mean Squared Error (RMSE) for two arrays."""
-    from sklearn.metrics import mean_squared_error
-
-    return np.sqrt(
-        mean_squared_error(
-            y_true=actuals,
-            y_pred=predictions,
-            sample_weight=weights,
-            multioutput="raw_values",
-        )
-    )[0]
-
-
-def _calc_error_metric(
-    actuals: np.array, predictions: np.array, error_function=_calc_RMSE, **kwargs
-):
-    """
-    Wrapper function that's meant to be used instead of directly calling _calc_RMSE, _calc_MSE< etc.
-    """
-    # filter out nulls from the actual and prediction arrays
-    null_mask = actuals.isnull()
-    actuals = actuals[~null_mask]
-    predictions = predictions[~null_mask]
-
-    return error_function(actuals=actuals, predictions=predictions, **kwargs)
-
-
-# TODO sum error metrics according to some groupers
 
 
 def _custom_asymmetric_train(y_pred, y_true, loss_multiplier=0.9):
@@ -771,14 +709,18 @@ def _make_future_dataframe(
     return output_df.drop(self.target, axis=1)
 
 
-def _fit_lightgbm(data, target, model_type="regression", **kwargs):
-    "Handler to create a fit lightgbm estimator"
-
-    model_dict = {
+def _get_lgbm_function_dict():
+    return {
         "regression": _get_regression_lgbm,
         "quantile": _get_quantile_lgbm,
         "tweedie": _get_tweedie_lgbm,
     }
+
+
+def _fit_lightgbm(data, target, model_type="regression", **kwargs):
+    "Handler to create a fit lightgbm estimator"
+
+    model_dict = _get_lgbm_function_dict()
 
     assert (
         model_type in model_dict.keys()
@@ -1317,96 +1259,3 @@ def cross_validate(
             "best_params"
         ],  # pass the best parameters found via cross-validation for the last fold
     )
-
-
-def _get_error_func_dict():
-    return {
-        "Actuals": lambda actuals, predictions: actuals,
-        "Predictions": lambda actuals, predictions: predictions,
-        "Absolute Percent Error": _calc_APE,
-        "Absolute Error": _calc_AE,
-        "Squared Error": _calc_SE,
-    }
-
-
-def get_cross_validation_errors(self, describe=True):
-    """
-    Calculate the in-sample and out-of-sample error metrics for the data found in .cross_validations
-
-    Parameters
-    ----------
-    describe: bool, default True
-        If True, returns a summary of the error metric distribution rather than the actual errors.
-    """
-
-    assert (
-        self.cross_validations
-    ), "Please run .cross_validate before calling this function"
-
-    function_mapping_dict = _get_error_func_dict()
-
-    result_list = []
-
-    for fold in self.cross_validations:
-        train, test = fold["train"], fold["test"]
-        result_list.append(
-            {
-                "In-Sample": _calc_errors(self=self, data=train, describe=describe),
-                "Out-of-Sample": _calc_errors(self=self, data=test, describe=describe),
-            }
-        )
-
-    return result_list
-
-
-def _calc_errors(self, data, describe):
-    """
-    Calculate all error metrics using the function outlined in _get_error_func_dict
-    """
-
-    function_mapping_dict = _get_error_func_dict()
-
-    data = data.copy()
-
-    for metric in function_mapping_dict.keys():
-        data.loc[:, metric] = function_mapping_dict[metric](
-            actuals=data[self.target],
-            predictions=data[f"predicted_{self.target}"],
-        ).replace([-np.inf, np.inf], np.nan)
-
-    if describe:
-        # filter out rows where we're missing actuals
-        data = data[~data[self.target].isnull()]
-        data = data.describe()
-
-    return data[function_mapping_dict.keys()]
-
-
-def _get_data_to_analyze(self):
-    if self.cross_validations:
-        data = self.cross_validations[-1]["test"]
-    elif self.predictions:
-        data = self.predictions
-    else:
-        raise ValueError(
-            "Please call .predict or .cross_validate before calculating errors."
-        )
-
-    return data
-
-
-def get_errors(self, data=None, describe=True):
-    """
-    Calculate in-sample error metrics using the predictions found in .predictions
-
-    Parameters
-    ----------
-    describe: bool, default True
-        If True, returns a summary of the error metric distribution rather than the actual errors.
-    data: pd.DataFrame, default None
-        If None, uses the last cross_validation set (if it exists), or the last prediction set if it doesn't
-    """
-    if data is None:
-        data = _get_data_to_analyze(self)
-
-    return _calc_errors(self=self, data=data, describe=describe)
