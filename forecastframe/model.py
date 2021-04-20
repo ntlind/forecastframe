@@ -453,129 +453,129 @@ def predict_lgbm(self, predict_df):
     return predict_df
 
 
-def cross_validate_lgbm(
-    self,
-    params: dict = None,
-    estimator_func: object = _get_tweedie_lgbm,
-    splitter: object = LeaveOneGroupOut,
-    cv_func: object = RandomizedSearchCV,
-    folds: int = 5,
-    gap: int = 0,
-    n_jobs: int = -1,
-    verbose: int = 0,
-    n_iter: int = 4,
-    scoring_func: object = None,
-    **kwargs,
-):
-    """
-    Splits your data into [folds] rolling folds, fits the best estimator to each fold,
-    and creates out-of-sample predictions for analysis.
+# def cross_validate_lgbm(
+#     self,
+#     params: dict = None,
+#     estimator_func: object = _get_tweedie_lgbm,
+#     splitter: object = LeaveOneGroupOut,
+#     cv_func: object = RandomizedSearchCV,
+#     folds: int = 5,
+#     gap: int = 0,
+#     n_jobs: int = -1,
+#     verbose: int = 0,
+#     n_iter: int = 4,
+#     scoring_func: object = None,
+#     **kwargs,
+# ):
+#     """
+#     Splits your data into [folds] rolling folds, fits the best estimator to each fold,
+#     and creates out-of-sample predictions for analysis.
 
-    Parameters
-    ----------
-    params : dict, default None
-        A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
-    estimator_func : function, default _get_quantile_lgbm
-        A function to create the LGBM estimator that you're intersted in using
-    splitter : object, default LeaveOneGroupOut
-        The strategy that sklearn uses to split your cross-validation set. Defaults to
-        LeaveOneGroupOut.
-    cv_func : object, default RandomizedSearchCV
-        The search algorithm used to find the best parameters. We recommend
-        RandomizedSearchCV or GridSearchCV from sklearn.
-    folds : int, default 5
-        Number of folds to use during cross-valdation
-    gap : int, default 0
-        Number of periods to skip in between test and training folds.
-    n_jobs : int, default -1
-        The processor parameter to pass to LightGBM. Defaults to using all cores.
-    verbose : int, default 0,
-        The verbose param to pass to LightGBM
-    n_iter : int, default 10
-        The number of iterations to run your CV search over
-    scoring_func: function, default None
-        The scoring parameter or custom scoring function to use.
-    """
+#     Parameters
+#     ----------
+#     params : dict, default None
+#         A dictionary of XGBoost parameters to explore. If none, uses a default "light" dict.
+#     estimator_func : function, default _get_quantile_lgbm
+#         A function to create the LGBM estimator that you're intersted in using
+#     splitter : object, default LeaveOneGroupOut
+#         The strategy that sklearn uses to split your cross-validation set. Defaults to
+#         LeaveOneGroupOut.
+#     cv_func : object, default RandomizedSearchCV
+#         The search algorithm used to find the best parameters. We recommend
+#         RandomizedSearchCV or GridSearchCV from sklearn.
+#     folds : int, default 5
+#         Number of folds to use during cross-valdation
+#     gap : int, default 0
+#         Number of periods to skip in between test and training folds.
+#     n_jobs : int, default -1
+#         The processor parameter to pass to LightGBM. Defaults to using all cores.
+#     verbose : int, default 0,
+#         The verbose param to pass to LightGBM
+#     n_iter : int, default 10
+#         The number of iterations to run your CV search over
+#     scoring_func: function, default None
+#         The scoring parameter or custom scoring function to use.
+#     """
 
-    if not params:
-        params = get_lgb_params("light")
+#     if not params:
+#         params = get_lgb_params("light")
 
-    self.compress()
+#     self.compress()
 
-    self.data = self.data.sort_index()
+#     self.data = self.data.sort_index()
 
-    time_grouper = self.data.index
+#     time_grouper = self.data.index
 
-    time_splitter = TimeSeriesSplit(n_splits=folds, gap=gap)
+#     time_splitter = TimeSeriesSplit(n_splits=folds, gap=gap)
 
-    time_splits = list(time_splitter.split(time_grouper))
+#     time_splits = list(time_splitter.split(time_grouper))
 
-    results = dict()
+#     results = dict()
 
-    for fold, [train_index, test_index] in enumerate(time_splits):
-        estimator = estimator_func(**kwargs)
-        scoring = _handle_scoring_func(scoring_func, **kwargs)
+#     for fold, [train_index, test_index] in enumerate(time_splits):
+#         estimator = estimator_func(**kwargs)
+#         scoring = _handle_scoring_func(scoring_func, **kwargs)
 
-        train, test, transform_dict = self._split_scale_and_feature_engineering(
-            train_index, test_index
-        )
+#         train, test, transform_dict = self._split_scale_and_feature_engineering(
+#             train_index, test_index
+#         )
 
-        train, test = self._run_ensembles(train=train, test=test)
+#         train, test = self._run_ensembles(train=train, test=test)
 
-        X_train, y_train = _split_frame(train, self.target)
-        X_test, y_test = _split_frame(test, self.target)
+#         X_train, y_train = _split_frame(train, self.target)
+#         X_test, y_test = _split_frame(test, self.target)
 
-        estimator_dict = _calc_best_estimator(
-            X=X_train,
-            y=y_train,
-            estimator=estimator,
-            splitter=splitter,
-            cv_func=cv_func,
-            params=params,
-            folds=folds,
-            n_jobs=n_jobs,
-            verbose=verbose,
-            n_iter=n_iter,
-            scoring=scoring,
-        )
+#         estimator_dict = _calc_best_estimator(
+#             X=X_train,
+#             y=y_train,
+#             estimator=estimator,
+#             splitter=splitter,
+#             cv_func=cv_func,
+#             params=params,
+#             folds=folds,
+#             n_jobs=n_jobs,
+#             verbose=verbose,
+#             n_iter=n_iter,
+#             scoring=scoring,
+#         )
 
-        train_predictions = pd.Series(
-            estimator_dict["best_estimator"].predict(X_train), index=X_train.index
-        )
-        test_predictions = pd.Series(
-            estimator_dict["best_estimator"].predict(X_test), index=X_test.index
-        )
+#         train_predictions = pd.Series(
+#             estimator_dict["best_estimator"].predict(X_train), index=X_train.index
+#         )
+#         test_predictions = pd.Series(
+#             estimator_dict["best_estimator"].predict(X_test), index=X_test.index
+#         )
 
-        (
-            train_actuals,
-            test_actuals,
-            descaled_train_predictions,
-            descaled_test_predictions,
-        ) = [
-            self._descale_target(df, transform_dict)
-            for df in [y_train, y_test, train_predictions, test_predictions]
-        ]
+#         (
+#             train_actuals,
+#             test_actuals,
+#             descaled_train_predictions,
+#             descaled_test_predictions,
+#         ) = [
+#             self._descale_target(df, transform_dict)
+#             for df in [y_train, y_test, train_predictions, test_predictions]
+#         ]
 
-        test_error = np.round(estimator_dict["best_estimator"].score(X_test, y_test), 4)
+#         test_error = np.round(estimator_dict["best_estimator"].score(X_test, y_test), 4)
 
-        results.update(
-            {
-                fold: {
-                    "best_estimator": estimator_dict["best_estimator"],
-                    "OOS_predictions": descaled_test_predictions,
-                    "OOS_actuals": test_actuals,
-                    "OOS_input": X_test,
-                    "IS_predictions": descaled_train_predictions,
-                    "IS_actuals": train_actuals,
-                    "IS_input": X_train,
-                    "best_IS_error": estimator_dict["best_error"],
-                    "best_OOS_error": test_error,
-                    "best_params": estimator_dict["best_params"],
-                }
-            }
-        )
+#         results.update(
+#             {
+#                 fold: {
+#                     "best_estimator": estimator_dict["best_estimator"],
+#                     "OOS_predictions": descaled_test_predictions,
+#                     "OOS_actuals": test_actuals,
+#                     "OOS_input": X_test,
+#                     "IS_predictions": descaled_train_predictions,
+#                     "IS_actuals": train_actuals,
+#                     "IS_input": X_train,
+#                     "best_IS_error": estimator_dict["best_error"],
+#                     "best_OOS_error": test_error,
+#                     "best_params": estimator_dict["best_params"],
+#                 }
+#             }
+#         )
 
-    self.results = results
+#     self.results = results
 
 
 def _split_on_date(data, date):
@@ -1559,7 +1559,9 @@ def _get_lightgbm_predictions(self, future_periods, model_type="regression", **k
     """Helper function to produce lgbm forecasts"""
     df, transform_dict = _handle_scaling_and_feature_engineering(self)
 
-    model_object = _fit_lightgbm(data=df, target=self.target, **kwargs)
+    model_object = _fit_lightgbm(
+        data=df, target=self.target, model_type=model_type, **kwargs
+    )
 
     output = _predict_lightgbm(
         self=self,
@@ -1645,6 +1647,7 @@ def cross_validate(
     folds: int = 5,
     gap: int = 0,
     splitter: object = LeaveOneGroupOut,
+    **kwargs,
 ):
     """
     Splits your data into [folds] rolling folds, fits the best estimator to each fold using grid search,
@@ -1766,7 +1769,7 @@ def _calc_errors(self, data, describe):
 
     function_mapping_dict = _get_error_func_dict()
 
-    data = data.copy(deep=True)
+    data = data.copy()
 
     for metric in function_mapping_dict.keys():
         data.loc[:, metric] = function_mapping_dict[metric](
@@ -1782,7 +1785,20 @@ def _calc_errors(self, data, describe):
     return data[function_mapping_dict.keys()]
 
 
-def get_errors(self, describe=True):
+def _get_data_to_analyze(self):
+    if self.cross_validations:
+        data = self.cross_validations[-1]["test"]
+    elif self.predictions:
+        data = self.predictions
+    else:
+        raise ValueError(
+            "Please call .predict or .cross_validate before calculating errors."
+        )
+
+    return data
+
+
+def get_errors(self, data=None, describe=True):
     """
     Calculate in-sample error metrics using the predictions found in .predictions
 
@@ -1790,8 +1806,10 @@ def get_errors(self, describe=True):
     ----------
     describe: bool, default True
         If True, returns a summary of the error metric distribution rather than the actual errors.
+    data: pd.DataFrame, default None
+        If None, uses the last cross_validation set (if it exists), or the last prediction set if it doesn't
     """
+    if data is None:
+        data = _get_data_to_analyze(self)
 
-    data = _calc_errors(self=self, data=data, describe=describe)
-
-    return data
+    return _calc_errors(self=self, data=data, describe=describe)
