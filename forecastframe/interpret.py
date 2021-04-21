@@ -468,20 +468,20 @@ def summarize_cv(self):
     def _get_key_stats():
         return f"""
         <b>In-Sample {metric}</b>:
-        <br />• Median: {_format_perc(is_median)}
-        <br />• Weighted Average: {_format_perc(is_weighted_average)}
-        <br />• Difference: {_format_perc((is_median-is_weighted_average))} ({is_skew} skew)
+        <br />• Median: {_format_percentage(is_median)}
+        <br />• Weighted Average: {_format_percentage(is_weighted_average)}
+        <br />• Difference: {_format_percentage((is_median-is_weighted_average))} ({is_skew} skew)
         <br /><br />
 
         <b>Out-of-Sample {metric}</b>:
-                <br />• Median: {_format_perc(oos_median)}
-                <br />• Weighted Average: {_format_perc(oos_weighted_average)}
-                <br />• Difference: {_format_perc((oos_median-oos_weighted_average))} ({oos_skew} skew)
+                <br />• Median: {_format_percentage(oos_median)}
+                <br />• Weighted Average: {_format_percentage(oos_weighted_average)}
+                <br />• Difference: {_format_percentage((oos_median-oos_weighted_average))} ({oos_skew} skew)
                 <br /><br />
         """
 
     def _get_performance_summary():
-        return f"For our last fold, our model achieved a median {_format_perc(is_median)} in-sample {metric} and a {_format_perc(oos_median)} out-of-sample {metric}. On a weighted average basis, our model achieved a {_format_perc(is_weighted_average)} in-sample error and a {_format_perc(oos_weighted_average)} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {oos_skew} values of our `{self.target}` variable."
+        return f"For our last fold, our model achieved a median {_format_percentage(is_median)} in-sample {metric} and a {_format_percentage(oos_median)} out-of-sample {metric}. On a weighted average basis, our model achieved a {_format_percentage(is_weighted_average)} in-sample error and a {_format_percentage(oos_weighted_average)} out-of-sample error. The difference between our out-of-sample median and weighted average values suggests that our model is more accurate when predicting {oos_skew} values of our `{self.target}` variable."
 
     def _get_fit_summary():
 
@@ -492,7 +492,7 @@ def summarize_cv(self):
             "worst": "significantly overfitting our training data",
         }
 
-        return f"The {_format_perc(difference)} error differential between our out-of-sample and in-sample results suggests that <b>our model is {explainations[difference_score]}</b>."
+        return f"The {_format_percentage(difference)} error differential between our out-of-sample and in-sample results suggests that <b>our model is {explainations[difference_score]}</b>."
 
     def _get_recommendation_summary():
 

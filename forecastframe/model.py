@@ -172,6 +172,10 @@ def _merge_actuals(self, prediction_df):
 
     NOTE: Doesn't join instances where actuals are null
     """
+
+    if self.target in prediction_df.columns:
+        return prediction_df
+
     if self.hierarchy:
         data = prediction_df
         merged_values = data.merge(
@@ -728,11 +732,11 @@ def _make_future_dataframe(
         )
 
         output_df[self.target] = None
-        output_df.set_index(self.datetime_column, inplace=True)
+        output_df.set_index(date_name, inplace=True)
 
     else:
         output_df = pd.DataFrame({date_name: dates, self.target: [None] * len(dates)})
-        output_df.set_index(self.datetime_column, inplace=True)
+        output_df.set_index(date_name, inplace=True)
 
     if include_history:
         if date_name == "ds":
@@ -940,8 +944,6 @@ def _predict_prophet(
         df = df.copy().reset_index()
 
     df = model_object.setup_dataframe(df)
-
-    print(f"df {df}")
 
     df.loc[:, "trend"] = model_object.predict_trend(df)
     seasonal_components = model_object.predict_seasonal_components(df)
