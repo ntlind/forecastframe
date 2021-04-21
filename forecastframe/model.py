@@ -20,6 +20,8 @@ from forecastframe.utilities import (
     _filter_on_infs_nans,
 )
 
+from forecastframe.interpret import _calc_error_metric, _calc_RMSE
+
 
 def _set_forecast_minimum(self, floor):
     """
@@ -923,7 +925,7 @@ def _predict_prophet(
 
     if df is None:
         if not future_periods:
-            df = model_object.history.copy()
+            df = model_object.history.copy().reset_index()
         else:
             df = _make_future_dataframe(
                 self=self,
@@ -932,11 +934,14 @@ def _predict_prophet(
                 hierarchy=hierarchy,
             ).reset_index()
 
-            df = model_object.setup_dataframe(df)
     else:
         if df.shape[0] == 0:
             raise ValueError("Dataframe has no rows.")
-        df = model_object.setup_dataframe(df.copy())
+        df = df.copy().reset_index()
+
+    df = model_object.setup_dataframe(df)
+
+    print(f"df {df}")
 
     df.loc[:, "trend"] = model_object.predict_trend(df)
     seasonal_components = model_object.predict_seasonal_components(df)
@@ -1102,7 +1107,7 @@ def _get_prophet_cv(
 
     time_splits = list(time_splitter.split(time_grouper))
 
-    self.cross_validations = {}
+    self.cross_validations = []
 
     for fold, [train_index, test_index] in enumerate(time_splits):
 
