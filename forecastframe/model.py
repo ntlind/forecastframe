@@ -44,8 +44,6 @@ def _add_simple_confidence_intervals(self, alpha=0.975):
         self.predictions[f"predicted_{self.target}"].sem() * multiplier
     )
 
-    print(multiplied_standard_error)
-
     self.predictions[f"predicted_{self.target}_upper"] = (
         self.predictions[f"predicted_{self.target}"] + multiplied_standard_error
     )
@@ -173,7 +171,7 @@ def _merge_actuals(self, prediction_df):
     NOTE: Doesn't join instances where actuals are null
     """
     if self.hierarchy:
-        data = prediction_df.loc[:, [f"predicted_{self.target}"] + self.hierarchy]
+        data = prediction_df
         merged_values = data.merge(
             self.data.loc[
                 ~self.data[self.target].isnull(), [self.target] + self.hierarchy
@@ -182,7 +180,7 @@ def _merge_actuals(self, prediction_df):
             how="outer",
         )
     else:
-        merged_values = prediction_df.loc[:, [f"predicted_{self.target}"]].merge(
+        merged_values = prediction_df.merge(
             self.data.loc[~self.data[self.target].isnull(), self.target],
             on=[self.datetime_column],
             how="outer",
@@ -697,10 +695,11 @@ def _make_future_dataframe(
     # prophet will rename the dataframe's datetime column, while lightgbm won't
     if "ds" in model_object.history.reset_index().columns:
         date_name = "ds"
+        last_date = model_object.history.reset_index()["ds"].max()
     else:
         date_name = self.datetime_column
+        last_date = model_object.history.index.max()
 
-    last_date = model_object.history.index.max()
     dates = pd.date_range(
         start=last_date,
         periods=periods + 1,  # An extra in case we include start
@@ -734,8 +733,12 @@ def _make_future_dataframe(
         output_df.set_index(self.datetime_column, inplace=True)
 
     if include_history:
-        output_df = pd.concat([model_object.history, output_df], axis=0)
-
+        if date_name == "ds":
+            output_df = pd.concat(
+                [model_object.history.set_index(date_name), output_df], axis=0
+            )
+        else:
+            output_df = pd.concat([model_object.history, output_df], axis=0)
     output_df = _run_feature_engineering(self=self, data=output_df)
 
     # Don't keep the target so we don't have to worry about leaking
@@ -898,7 +901,7 @@ def _fit_prophet(data, *args, **kwargs):
 
 
 def _predict_prophet(
-    model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
+    self, model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
 ):
     """
     A custom version of Prophet's .predict() method which doesn't discard columns.
@@ -923,8 +926,12 @@ def _predict_prophet(
             df = model_object.history.copy()
         else:
             df = _make_future_dataframe(
-                model_object=model_object, periods=future_periods, hierarchy=hierarchy
-            )
+                self=self,
+                model_object=model_object,
+                periods=future_periods,
+                hierarchy=hierarchy,
+            ).reset_index()
+
             df = model_object.setup_dataframe(df)
     else:
         if df.shape[0] == 0:
@@ -988,7 +995,9 @@ def _grid_search_prophet_params(self, training_data, param_grid, transform_dict)
     # Use cross validation to evaluate all parameters
     for param in param_grid:
         estimator = _fit_prophet(training_data, **param)
-        predictions = _predict_prophet(model_object=estimator, df=training_data)["yhat"]
+        predictions = _predict_prophet(
+            self=self, model_object=estimator, df=training_data
+        )["yhat"]
 
         descaled_actuals = self._descale_target(
             training_data, transform_dict=transform_dict, target="y"
@@ -1113,12 +1122,13 @@ def _get_prophet_cv(
         )
 
         train_predictions = _predict_prophet(
+            self=self,
             model_object=estimator_dict["best_estimator"],
             df=train,
         )["yhat"]
 
         test_predictions = _predict_prophet(
-            model_object=estimator_dict["best_estimator"], df=test
+            self=self, model_object=estimator_dict["best_estimator"], df=test
         )["yhat"]
 
         (train_actuals, test_actuals,) = [
@@ -1188,6 +1198,7 @@ def _get_prophet_predictions(self, future_periods, **kwargs):
     model_object = _fit_prophet(data=processed_df, **kwargs)
 
     predictions = _predict_prophet(
+        self=self,
         model_object=model_object,
         future_periods=future_periods,
         hierarchy=self.hierarchy,
