@@ -973,14 +973,18 @@ def get_predictions(self):
         "prophet": [
             "trend",
             f"predicted_{self.target}",
-            f"predicted_{self.target}_upper",
-            f"predicted_{self.target}_lower",
             self.target,
         ],
         "lightgbm": [f"predicted_{self.target}", self.target],
     }
 
     columns_to_keep = col_dict[self.model]
+
+    if f"predicted_{self.target}_lower" in self.predictions.columns:
+        columns_to_keep += [
+            f"predicted_{self.target}_upper",
+            f"predicted_{self.target}_lower",
+        ]
 
     if self.hierarchy:
         columns_to_keep = columns_to_keep + self.hierarchy
