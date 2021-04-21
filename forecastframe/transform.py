@@ -386,7 +386,7 @@ def encode_categoricals(self):
     )
 
     # apply these same transformations to the sample
-    self.sample[object_columns] = self.sample[object_columns].astype("category")
+    self.sample[category_columns] = self.sample[category_columns].astype("category")
     self.sample[category_columns] = self.sample[category_columns].apply(
         lambda x: x.cat.codes
     )
