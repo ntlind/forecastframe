@@ -1,7 +1,6 @@
 .gitattributes
 .gitignore
 README.md
-TODO.md
 codecov.yml
 requirements.txt
 setup.py

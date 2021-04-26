@@ -176,7 +176,6 @@ def test__split_scale_and_feature_engineering():
 def test_predict():
     fframe = testing.get_test_fframe()
 
-    # TODO check that these things are actually used
     fframe.normalize_features(features=["sales_float"])
     # fframe.calc_days_since_release()
     fframe.calc_datetime_features()
@@ -216,12 +215,10 @@ def test__make_future_dataframe():
         self=fframe, model_object=model_object, periods=10, hierarchy=fframe.hierarchy
     )
 
-    # TODO looks right, but needs a better test
     assert set(fframe.hierarchy).issubset(set(result.columns))
 
 
 def test_cross_validate():
-    # TODO write test
     pass
 
 

@@ -97,9 +97,6 @@ def _calc_error_metric(
     return error_function(actuals=actuals, predictions=predictions, **kwargs)
 
 
-# TODO sum error metrics according to some groupers
-
-
 def _get_error_func_dict():
     return {
         "Actuals": lambda actuals, predictions: actuals,
@@ -151,8 +148,7 @@ def _calc_errors(self, data, describe):
 
     for metric in function_mapping_dict.keys():
         data.loc[:, metric] = function_mapping_dict[metric](
-            actuals=data[self.target],
-            predictions=data[f"predicted_{self.target}"],
+            actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
     if describe:
@@ -331,10 +327,7 @@ def plot_shap_dependence(self, column_name, color_column=None):
         color_column = column_name
 
     return shap.dependence_plot(
-        column_name,
-        shap_values,
-        data,
-        interaction_index=color_column,
+        column_name, shap_values, data, interaction_index=color_column,
     )
 
 
@@ -397,9 +390,7 @@ def plot_shap_force(self, slicer=None, show=False, *args, **kwargs):
         slicer = _get_default_slicer(data)
 
     return shap.force_plot(
-        explainer.expected_value,
-        shap_values[slicer, :],
-        data.iloc[slicer, :],
+        explainer.expected_value, shap_values[slicer, :], data.iloc[slicer, :],
     )
 
 
@@ -886,7 +877,6 @@ def summarize_cv(self):
 #         The error metric you'd like to plot by fold. Should be one of "APE",
 #         "AE", "RMSE", or "SE".
 
-#     TODO period not implemented
 #     """
 
 #     def _get_seasonality_summary(self):

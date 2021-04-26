@@ -267,9 +267,7 @@ def _get_lightgbm_cv(
         )
 
         train_predictions = _predict_lightgbm(
-            self=self,
-            model_object=estimator_dict["best_estimator"],
-            df=train,
+            self=self, model_object=estimator_dict["best_estimator"], df=train,
         )[f"predicted_{self.target}"]
 
         test_predictions = _predict_lightgbm(
@@ -289,10 +287,7 @@ def _get_lightgbm_cv(
                 transform_dict=transform_dict,
                 target=f"predicted_{self.target}",
             )
-            for df in [
-                train_predictions,
-                test_predictions,
-            ]
+            for df in [train_predictions, test_predictions,]
         ]
 
         train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
@@ -320,8 +315,6 @@ def _grid_search_lightgbm_params(
     transform_dict,
     **kwargs,
 ):
-    # TODO need to use transform_dict to descale predictions
-    # TODO doesn't take kwargs
     """
     Cross-validate a lightgbm pipeline and return the best estimator
     """
@@ -644,9 +637,7 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     scaled_test[self.target] = None
 
     combined_data = pd.concat(
-        [scaled_train, scaled_test],
-        keys=["train", "test"],
-        axis=0,
+        [scaled_train, scaled_test], keys=["train", "test"], axis=0,
     )
 
     combined_data.index.names = ["_sample_name", self.datetime_column]
@@ -896,7 +887,6 @@ def _fit_prophet(data, *args, **kwargs):
         col for col in list(data.columns) if col not in ["y", "ds"]
     ]
 
-    # TODO need a test to prove this is working
     (model.add_regressor(regressor) for regressor in additional_regressors)
 
     model = model.fit(data)
@@ -917,7 +907,6 @@ def _predict_prophet(
     df: pd.DataFrame with dates for predictions (column ds), and capacity
         (column cap) if logistic growth. If not provided, predictions are
         made on the history.
-    #TODO update
 
     Notes
     ----------
@@ -970,11 +959,7 @@ def get_predictions(self):
     ), "Please run .predict or .cross-validate before callign this function"
 
     col_dict = {
-        "prophet": [
-            "trend",
-            f"predicted_{self.target}",
-            self.target,
-        ],
+        "prophet": ["trend", f"predicted_{self.target}", self.target,],
         "lightgbm": [f"predicted_{self.target}", self.target],
     }
 
@@ -996,8 +981,6 @@ def _grid_search_prophet_params(self, training_data, param_grid, transform_dict)
     """
     Cross-validate prophet model and return the best parameters
 
-    TODO multiprocess; select parameters using out-of-sample error
-    #TODO allow user to pick the metric used to determine best params
     """
     from fbprophet.diagnostics import cross_validation, performance_metrics
 
@@ -1068,7 +1051,6 @@ def _postprocess_prophet_names(self, df):
     return df
 
 
-# TODO update name for parallelism
 def _get_prophet_cv(
     self,
     params: dict = None,
@@ -1133,9 +1115,7 @@ def _get_prophet_cv(
         )
 
         train_predictions = _predict_prophet(
-            self=self,
-            model_object=estimator_dict["best_estimator"],
-            df=train,
+            self=self, model_object=estimator_dict["best_estimator"], df=train,
         )["yhat"]
 
         test_predictions = _predict_prophet(
@@ -1149,10 +1129,7 @@ def _get_prophet_cv(
 
         (descaled_train_predictions, descaled_test_predictions,) = [
             self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
-            for df in [
-                train_predictions,
-                test_predictions,
-            ]
+            for df in [train_predictions, test_predictions,]
         ]
 
         train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
@@ -1245,7 +1222,6 @@ def predict(self, model, future_periods=None, *args, **kwargs):
         model in model_mappings.keys()
     ), f"Model must be one of {model_mappings.keys()}"
 
-    # TODO handle different encoding strategies
     self.encode_categoricals()
 
     modeling_function = model_mappings[model]
@@ -1300,11 +1276,7 @@ def cross_validate(
     modeling_function = model_mappings[model]
 
     modeling_function(
-        self=self,
-        params=params,
-        folds=folds,
-        gap=gap,
-        splitter=LeaveOneGroupOut,
+        self=self, params=params, folds=folds, gap=gap, splitter=LeaveOneGroupOut,
     )
 
     self.predict(

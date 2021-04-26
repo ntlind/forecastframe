@@ -520,7 +520,6 @@ def calc_ewma(
             second_df=calcs, index=groupby_cols, attribute=attribute
         )
 
-        # TODO need a better way to handle this
         if crossovers:
             nonlocal crossover_list
             crossover_list += [calcs]
@@ -616,7 +615,6 @@ def calc_ewma(
 
     if crossovers:
         if not crossover_list:
-            # TODO
             raise ValueError(
                 "Crossovers only available for hierarchical data at this time"
             )
@@ -709,18 +707,12 @@ def calc_percent_change(
         The attribute of self where your data should be pulled from and saved to.
         If set to "sample", will also add the function call to function_list for
         later processing.
-
-    # TODO this function won't work with non-hierarchical data
     """
     if attribute == "sample":
         self.function_list.append(
             (
                 calc_percent_change,
-                {
-                    "feature": feature,
-                    "lag": lag,
-                    "groupers": groupers,
-                },
+                {"feature": feature, "lag": lag, "groupers": groupers,},
             )
         )
 
@@ -799,8 +791,7 @@ def calc_percent_relative_to_threshold(
         The attribute of self where your data should be pulled from and saved to.
         If set to "sample", will also add the function call to function_list for
         later processing.
-
-    #TODO this function won't work with non-hierarchical data
+        
     """
 
     if attribute == "sample":

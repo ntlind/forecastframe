@@ -3,7 +3,6 @@ Base class for ForecastFrame
 """
 import pandas as pd
 
-# TODO deal with loc warnings
 pd.options.mode.chained_assignment = None  # default='warn'
 
 
