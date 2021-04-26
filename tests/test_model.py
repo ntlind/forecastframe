@@ -178,11 +178,11 @@ def test_predict():
 
     # TODO check that these things are actually used
     fframe.normalize_features(features=["sales_float"])
-    fframe.calc_days_since_release()
+    # fframe.calc_days_since_release()
     fframe.calc_datetime_features()
-    fframe.calc_percent_change()
+    # fframe.calc_percent_change()
 
-    fframe.predict(future_periods=10)
+    fframe.predict(future_periods=10, model="prophet")
 
     results = fframe.predictions
 
@@ -202,7 +202,7 @@ def test__merge_actuals():
         {"sales_int": "predicted_sales_int"}, axis=1
     )
 
-    result = ff.model._merge_actuals(fframe)
+    result = ff.model._merge_actuals(fframe, prediction_df=fframe.predictions)
 
     assert set(["sales_int", "predicted_sales_int"]).issubset(set(result.columns))
 
@@ -213,17 +213,22 @@ def test__make_future_dataframe():
     processed_df = ff.model._preprocess_prophet_names(self=fframe, df=fframe.data)
     model_object = ff.model._fit_prophet(processed_df)
     result = ff.model._make_future_dataframe(
-        self=model_object, periods=10, hierarchy=fframe.hierarchy
+        self=fframe, model_object=model_object, periods=10, hierarchy=fframe.hierarchy
     )
 
     # TODO looks right, but needs a better test
-    assert set(fframe.hierarchy + ["ds"]).issubset(set(result.columns))
+    assert set(fframe.hierarchy).issubset(set(result.columns))
+
+
+def test_cross_validate():
+    # TODO write test
+    pass
 
 
 def test_get_errors():
     fframe = testing.get_test_fframe()
 
-    fframe.predict(future_periods=10)
+    fframe.predict(future_periods=10, model="prophet")
 
     results = fframe.get_errors()
 
@@ -235,6 +240,7 @@ def test_get_errors():
 if __name__ == "__main__":
     test__make_future_dataframe()
     test_predict()
+    test_cross_validate()
     test__merge_actuals()
     test_get_errors()
     test_get_errors()
