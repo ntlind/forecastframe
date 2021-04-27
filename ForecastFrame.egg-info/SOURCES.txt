@@ -10,7 +10,6 @@ ForecastFrame.egg-info/PKG-INFO
 ForecastFrame.egg-info/SOURCES.txt
 ForecastFrame.egg-info/dependency_links.txt
 ForecastFrame.egg-info/top_level.txt
-examples/m5_example.ipynb
 examples/prophet_example.ipynb
 examples/walmart_example/features.csv
 examples/walmart_example/sampleSubmission.csv

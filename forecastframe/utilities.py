@@ -368,7 +368,7 @@ def check_memory():
     """Prints the top 10 biggest objects in the global namespace"""
 
     def sizeof_fmt(num, suffix="B"):
-        """ by Fred Cirera,  https://stackoverflow.com/a/1094933/1870254, modified"""
+        """by Fred Cirera,  https://stackoverflow.com/a/1094933/1870254, modified"""
         for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
             if abs(num) < 1024.0:
                 return "%3.1f %s%s" % (num, unit, suffix)
@@ -488,3 +488,10 @@ def _trace_calls(self):
     import sys
 
     sys.setprofile(tracefunc)
+
+
+def print_missing_percentages(self):
+    """
+    Print the percent of missing values by column
+    """
+    return self.data.isnull().sum(axis=0) / len(self.data)
