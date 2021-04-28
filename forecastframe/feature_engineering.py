@@ -170,6 +170,43 @@ def calc_datetime_features(
         data[feature] = datetime_ops.get(feature)(pd.to_datetime(data.index))
 
 
+def difference_features(
+    self, features: list, periods: int = 1, attribute: str = "sample"
+):
+    """
+    Calculate the difference from one period to the next for a given list of feautres
+
+    Parameters
+    ----------
+    features: list
+        The list of features that you'd like to difference
+    periods: int, default 1
+        The number of periods to shift your features by
+    attribute : str, default "sample"
+        The attribute of self where your data should be pulled from and saved to.
+        If set to "sample", will also add the function call to function_list for
+        later processing.
+    """
+    if attribute == "sample":
+        self.function_list.append(
+            (difference_features, {"features": features, "periods": periods})
+        )
+
+    data = getattr(self, attribute)
+
+    features = utilities._ensure_is_list(features)
+    new_column_names = [f"{feature}_differenced_{periods}" for feature in features]
+
+    if self.hierarchy:
+        data[new_column_names] = data.groupby(self.hierarchy)[features].diff(
+            periods=periods
+        )
+    else:
+        data[new_column_names] = data[features].diff(periods=periods)
+
+    setattr(self, attribute, data)
+
+
 def lag_features(self, features: list, lags: list, attribute: str = "sample"):
     """
     Lags a given set of features across one or more periods.
@@ -712,7 +749,11 @@ def calc_percent_change(
         self.function_list.append(
             (
                 calc_percent_change,
-                {"feature": feature, "lag": lag, "groupers": groupers,},
+                {
+                    "feature": feature,
+                    "lag": lag,
+                    "groupers": groupers,
+                },
             )
         )
 
@@ -791,7 +832,7 @@ def calc_percent_relative_to_threshold(
         The attribute of self where your data should be pulled from and saved to.
         If set to "sample", will also add the function call to function_list for
         later processing.
-        
+
     """
 
     if attribute == "sample":

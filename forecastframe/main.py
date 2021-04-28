@@ -108,6 +108,7 @@ class ForecastFrame:
     )
 
     from forecastframe.feature_engineering import (
+        difference_features,
         calc_days_since_release,
         calc_datetime_features,
         lag_features,

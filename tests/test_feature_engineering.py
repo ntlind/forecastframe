@@ -401,7 +401,34 @@ def test_calc_percent_relative_to_threshold():
         assert diff <= testing._get_difference_threshold()
 
 
+def test_differences_features():
+    fframe = testing.get_test_fframe()
+    fframe.difference_features(features="sales_int")
+
+    result = fframe.sample["sales_int_differenced_1"]
+    answer = np.array(
+        [
+            np.nan,
+            10000 - 113,
+            214 - 10000,
+            123 - 214,
+            np.nan,
+            np.nan,
+            np.nan,
+            -20 - 0,
+            np.nan,
+            4 - 2,
+            10 - 4,
+            -10 - 10,
+        ]
+    )
+
+    diff = abs(np.nansum(result - answer))
+    assert diff <= testing._get_difference_threshold(), list(zip(result, answer))
+
+
 if __name__ == "__main__":
+    test_differences_features()
     # test_join_demographics()
     test_calc_percent_relative_to_threshold()
     test_calc_ewma()
