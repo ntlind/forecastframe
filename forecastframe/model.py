@@ -1349,6 +1349,7 @@ def cross_validate(
     gap: int = 0,
     splitter: object = LeaveOneGroupOut,
     min_lag_dict=None,
+    search_strategy: str = "random",
     **kwargs,
 ):
     """
@@ -1371,6 +1372,8 @@ def cross_validate(
         The strategy that sklearn uses to split your cross-validation set. Defaults to sklearn's LeaveOneGroupOut.
      min_lag_dict : dict, default None
         If user passes a dictionary of {column_name: minimum lag value}, any lag values less than this threshold will be deleted prior to modeling
+    search_strategy: str, default "random"
+        The cross-validation strategy to use for parameter tuning. Should be one of "grid" or "random".
     """
 
     model_mappings = {"prophet": _get_prophet_cv, "lightgbm": _get_lightgbm_cv}
@@ -1387,6 +1390,7 @@ def cross_validate(
         gap=gap,
         splitter=LeaveOneGroupOut,
         min_lag_dict=min_lag_dict,
+        search_strategy=search_strategy,
     )
 
     self.predict(
