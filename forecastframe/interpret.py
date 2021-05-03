@@ -247,8 +247,6 @@ def _calc_shap_values(self, data=None):
             [self.target, f"predicted_{self.target}"], axis=1
         )
 
-    print(data.dtypes)
-
     explainer = shap.TreeExplainer(self.model_object)
     self.shap = {
         "explainer": explainer,
