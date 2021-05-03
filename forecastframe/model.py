@@ -250,6 +250,10 @@ def _get_lightgbm_cv(
 
     for fold, [train_index, test_index] in enumerate(time_splits):
 
+        print(
+            f"Running fold {fold} of {len(time_splits)} with train size {len(train_index)} and test size {len(test_index)}"
+        )
+
         train, test, transform_dict = self._split_scale_and_feature_engineering(
             train_index, test_index
         )
@@ -267,7 +271,9 @@ def _get_lightgbm_cv(
         )
 
         train_predictions = _predict_lightgbm(
-            self=self, model_object=estimator_dict["best_estimator"], df=train,
+            self=self,
+            model_object=estimator_dict["best_estimator"],
+            df=train,
         )[f"predicted_{self.target}"]
 
         test_predictions = _predict_lightgbm(
@@ -287,7 +293,10 @@ def _get_lightgbm_cv(
                 transform_dict=transform_dict,
                 target=f"predicted_{self.target}",
             )
-            for df in [train_predictions, test_predictions,]
+            for df in [
+                train_predictions,
+                test_predictions,
+            ]
         ]
 
         train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
@@ -329,7 +338,7 @@ def _grid_search_lightgbm_params(
     if model_type == "quantile":
         scorer = _get_quantile_scorer(locals().get("quantile", 0.5))
     else:
-        scorer = None
+        scorer = "neg_mean_squared_error"
 
     search_dict = {"grid": GridSearchCV, "random": RandomizedSearchCV}
     assert search_strategy in search_dict.keys()
@@ -637,7 +646,9 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     scaled_test[self.target] = None
 
     combined_data = pd.concat(
-        [scaled_train, scaled_test], keys=["train", "test"], axis=0,
+        [scaled_train, scaled_test],
+        keys=["train", "test"],
+        axis=0,
     )
 
     combined_data.index.names = ["_sample_name", self.datetime_column]
@@ -959,7 +970,11 @@ def get_predictions(self):
     ), "Please run .predict or .cross-validate before callign this function"
 
     col_dict = {
-        "prophet": ["trend", f"predicted_{self.target}", self.target,],
+        "prophet": [
+            "trend",
+            f"predicted_{self.target}",
+            self.target,
+        ],
         "lightgbm": [f"predicted_{self.target}", self.target],
     }
 
@@ -1115,7 +1130,9 @@ def _get_prophet_cv(
         )
 
         train_predictions = _predict_prophet(
-            self=self, model_object=estimator_dict["best_estimator"], df=train,
+            self=self,
+            model_object=estimator_dict["best_estimator"],
+            df=train,
         )["yhat"]
 
         test_predictions = _predict_prophet(
@@ -1129,7 +1146,10 @@ def _get_prophet_cv(
 
         (descaled_train_predictions, descaled_test_predictions,) = [
             self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
-            for df in [train_predictions, test_predictions,]
+            for df in [
+                train_predictions,
+                test_predictions,
+            ]
         ]
 
         train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
@@ -1276,7 +1296,11 @@ def cross_validate(
     modeling_function = model_mappings[model]
 
     modeling_function(
-        self=self, params=params, folds=folds, gap=gap, splitter=LeaveOneGroupOut,
+        self=self,
+        params=params,
+        folds=folds,
+        gap=gap,
+        splitter=LeaveOneGroupOut,
     )
 
     self.predict(
