@@ -148,7 +148,8 @@ def _calc_errors(self, data, describe):
 
     for metric in function_mapping_dict.keys():
         data.loc[:, metric] = function_mapping_dict[metric](
-            actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
+            actuals=data[self.target],
+            predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
     if describe:
@@ -246,6 +247,8 @@ def _calc_shap_values(self, data=None):
             [self.target, f"predicted_{self.target}"], axis=1
         )
 
+    print(data.dtypes)
+
     explainer = shap.TreeExplainer(self.model_object)
     self.shap = {
         "explainer": explainer,
@@ -327,7 +330,10 @@ def plot_shap_dependence(self, column_name, color_column=None):
         color_column = column_name
 
     return shap.dependence_plot(
-        column_name, shap_values, data, interaction_index=color_column,
+        column_name,
+        shap_values,
+        data,
+        interaction_index=color_column,
     )
 
 
@@ -390,7 +396,9 @@ def plot_shap_force(self, slicer=None, show=False, *args, **kwargs):
         slicer = _get_default_slicer(data)
 
     return shap.force_plot(
-        explainer.expected_value, shap_values[slicer, :], data.iloc[slicer, :],
+        explainer.expected_value,
+        shap_values[slicer, :],
+        data.iloc[slicer, :],
     )
 
 

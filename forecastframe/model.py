@@ -989,7 +989,9 @@ def get_predictions(self):
     if self.hierarchy:
         columns_to_keep = columns_to_keep + self.hierarchy
 
-    return self.predictions[columns_to_keep]
+    decoded_output = self.decode_categoricals(data=self.predictions)
+
+    return decoded_output[columns_to_keep]
 
 
 def _grid_search_prophet_params(self, training_data, param_grid, transform_dict):
@@ -1251,9 +1253,7 @@ def predict(self, model, future_periods=None, *args, **kwargs):
 
     output = _merge_actuals(self, output)
 
-    decoded_output = self.decode_categoricals(data=output)
-
-    self.predictions = decoded_output
+    self.predictions = output
     self.model_object = model_object
     self.model = model
 
