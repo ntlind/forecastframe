@@ -270,6 +270,7 @@ def _get_lightgbm_cv(
             splitter=splitter,
             folds=folds,
             transform_dict=transform_dict,
+            min_lag_dict=min_lag_dict,
             **kwargs,
         )
 
@@ -277,10 +278,14 @@ def _get_lightgbm_cv(
             self=self,
             model_object=estimator_dict["best_estimator"],
             df=train,
+            min_lag_dict=min_lag_dict,
         )[f"predicted_{self.target}"]
 
         test_predictions = _predict_lightgbm(
-            self=self, model_object=estimator_dict["best_estimator"], df=test
+            self=self,
+            model_object=estimator_dict["best_estimator"],
+            df=test,
+            min_lag_dict=min_lag_dict,
         )[f"predicted_{self.target}"]
 
         (train_actuals, test_actuals,) = [
@@ -325,6 +330,7 @@ def _grid_search_lightgbm_params(
     splitter,
     folds,
     transform_dict,
+    min_lag_dict=None,
     **kwargs,
 ):
     """
@@ -588,7 +594,7 @@ def _run_scaler_pipeline(self, df: pd.DataFrame, augment_feature_list: bool = Fa
         return [df, consolidated_transform_dict]
 
 
-def _run_feature_engineering(self, data):
+def _run_feature_engineering(self, data, min_lag_dict=None):
     """
     Run all of the stored feature engineering calls in self.function_list
     on some input dataframe.
@@ -619,6 +625,11 @@ def _run_feature_engineering(self, data):
     final_output = getattr(self, attribute)
     delattr(self, attribute)
 
+    if min_lag_dict:
+        final_output = _remove_min_lags(
+            min_lag_dict=min_lag_dict, df=final_output, target=self.target
+        )
+
     return final_output
 
 
@@ -630,16 +641,17 @@ def _remove_min_lags(min_lag_dict, df, target):
         if target in affected_columns:
             affected_columns.remove(target)
 
+        cols_to_remove = []
         for col in affected_columns:
             if col.split("_lag")[-1].isdigit():
                 if int(col.split("_lag")[-1]) >= lag_value:
-                    affected_columns.remove(col)
-                else:
                     continue
+                else:
+                    cols_to_remove.append(col)
             else:
-                continue
+                cols_to_remove.append(col)
 
-        df.drop(affected_columns, axis=1, inplace=True)
+        df.drop(cols_to_remove, axis=1, inplace=True)
 
     return df
 
@@ -683,13 +695,7 @@ def _split_scale_and_feature_engineering(
     # can cause front-end errors when not explicitely reset
     _reset_date_index(self=self, df=combined_data)
 
-    final_data = self._run_feature_engineering(combined_data)
-
-    # drop columns that don't satisfy lag condition if requested by user:
-    if min_lag_dict:
-        final_data = _remove_min_lags(
-            min_lag_dict=min_lag_dict, df=final_data, target=self.target
-        )
+    final_data = self._run_feature_engineering(combined_data, min_lag_dict=min_lag_dict)
 
     # resplit data
     final_train, final_test = [
@@ -708,7 +714,13 @@ def _split_scale_and_feature_engineering(
 
 
 def _make_future_dataframe(
-    self, model_object, periods, freq="D", include_history=True, hierarchy=None
+    self,
+    model_object,
+    periods,
+    freq="D",
+    include_history=True,
+    hierarchy=None,
+    min_lag_dict=None,
 ):
     """
     Simulate the trend using the extrapolated generative model. This is a modified version of the original code that can create multiple timeseries for a given hierarchy
@@ -730,16 +742,10 @@ def _make_future_dataframe(
 
     Original code found here: https://github.com/facebook/prophet/blob/master/python/prophet/forecaster.py
     """
-    if model_object.history is None:
-        raise Exception("Model has not been fit.")
 
     # prophet will rename the dataframe's datetime column, while lightgbm won't
-    if "ds" in model_object.history.reset_index().columns:
-        date_name = "ds"
-        last_date = model_object.history.reset_index()["ds"].max()
-    else:
-        date_name = self.datetime_column
-        last_date = model_object.history.index.max()
+    date_name = self.datetime_column
+    last_date = self.data.index.max()
 
     dates = pd.date_range(
         start=last_date,
@@ -753,7 +759,7 @@ def _make_future_dataframe(
         from itertools import product
 
         unique_hierarchical_elements = (
-            model_object.history[hierarchy].drop_duplicates().values.tolist()
+            self.data[hierarchy].drop_duplicates().values.tolist()
         )
 
         output_df = pd.DataFrame(
@@ -774,15 +780,13 @@ def _make_future_dataframe(
         output_df.set_index(date_name, inplace=True)
 
     if include_history:
-        if date_name == "ds":
-            output_df = pd.concat(
-                [model_object.history.set_index(date_name), output_df], axis=0
-            )
-        else:
-            output_df = pd.concat([model_object.history, output_df], axis=0)
-    output_df = _run_feature_engineering(self=self, data=output_df)
+        output_df = pd.concat([self.data, output_df], axis=0)
 
-    # Don't keep the target so we don't have to worry about leaking
+    output_df = _run_feature_engineering(
+        self=self, data=output_df, min_lag_dict=min_lag_dict
+    )
+
+    # Drop target so we don't have to worry about leaking
     return output_df.drop(self.target, axis=1)
 
 
@@ -836,14 +840,12 @@ def _predict_lightgbm(
                 model_object=model_object,
                 periods=future_periods,
                 hierarchy=hierarchy,
+                min_lag_dict=min_lag_dict,
             )
     else:
         df = df.copy(deep=True)
 
     df = df.drop(self.target, axis=1, errors="ignore")
-
-    if min_lag_dict:
-        df = _remove_min_lags(min_lag_dict=min_lag_dict, df=df, target=self.target)
 
     df.loc[:, f"predicted_{self.target}"] = model_object.predict(df)
 
@@ -986,6 +988,7 @@ def _predict_prophet(
                 model_object=model_object,
                 periods=future_periods,
                 hierarchy=hierarchy,
+                min_lag_dict=min_lag_dict,
             ).reset_index()
 
     else:
@@ -993,8 +996,7 @@ def _predict_prophet(
             raise ValueError("Dataframe has no rows.")
         df = df.copy().reset_index()
 
-    if min_lag_dict:
-        df = _remove_min_lags(min_lag_dict=min_lag_dict, df=df, target=self.target)
+    df = df.rename({self.datetime_column: "ds"}, axis=1)
 
     df = model_object.setup_dataframe(df)
 
@@ -1047,7 +1049,9 @@ def get_predictions(self):
     return decoded_output[columns_to_keep]
 
 
-def _grid_search_prophet_params(self, training_data, param_grid, transform_dict):
+def _grid_search_prophet_params(
+    self, training_data, param_grid, transform_dict, min_lag_dict=None
+):
     """
     Cross-validate prophet model and return the best parameters
 
@@ -1060,7 +1064,10 @@ def _grid_search_prophet_params(self, training_data, param_grid, transform_dict)
     for param in param_grid:
         estimator = _fit_prophet(training_data, **param)
         predictions = _predict_prophet(
-            self=self, model_object=estimator, df=training_data
+            self=self,
+            model_object=estimator,
+            df=training_data,
+            min_lag_dict=min_lag_dict,
         )["yhat"]
 
         descaled_actuals = self._descale_target(
@@ -1185,16 +1192,21 @@ def _get_prophet_cv(
             training_data=train,
             param_grid=parameter_combinations,
             transform_dict=transform_dict,
+            min_lag_dict=min_lag_dict,
         )
 
         train_predictions = _predict_prophet(
             self=self,
             model_object=estimator_dict["best_estimator"],
             df=train,
+            min_lag_dict=min_lag_dict,
         )["yhat"]
 
         test_predictions = _predict_prophet(
-            self=self, model_object=estimator_dict["best_estimator"], df=test
+            self=self,
+            model_object=estimator_dict["best_estimator"],
+            df=test,
+            min_lag_dict=min_lag_dict,
         )["yhat"]
 
         (train_actuals, test_actuals,) = [
@@ -1222,12 +1234,12 @@ def _get_prophet_cv(
         self.cross_validations.append({"train": train, "test": test, **estimator_dict})
 
 
-def _handle_scaling_and_feature_engineering(self):
+def _handle_scaling_and_feature_engineering(self, min_lag_dict=None):
     df = self.data.copy(deep=True)
 
     df, transform_dict = self._run_scaler_pipeline(df)
 
-    df = self._run_feature_engineering(df)
+    df = self._run_feature_engineering(df, min_lag_dict=min_lag_dict)
 
     return df, transform_dict
 
@@ -1236,7 +1248,9 @@ def _get_lightgbm_predictions(
     self, future_periods, model_type="regression", min_lag_dict=None, **kwargs
 ):
     """Helper function to produce lgbm forecasts"""
-    df, transform_dict = _handle_scaling_and_feature_engineering(self)
+    df, transform_dict = _handle_scaling_and_feature_engineering(
+        self, min_lag_dict=min_lag_dict
+    )
 
     model_object = _fit_lightgbm(
         data=df, target=self.target, model_type=model_type, **kwargs
@@ -1247,7 +1261,7 @@ def _get_lightgbm_predictions(
         model_object=model_object,
         future_periods=future_periods,
         hierarchy=self.hierarchy,
-        min_lag_dct=min_lag_dict,
+        min_lag_dict=min_lag_dict,
     )
 
     output.loc[:, f"predicted_{self.target}"] = self._descale_target(
@@ -1260,7 +1274,9 @@ def _get_lightgbm_predictions(
 def _get_prophet_predictions(self, future_periods, min_lag_dict, **kwargs):
     """Helpers functions to produce prophet forecasts"""
 
-    df, transform_dict = _handle_scaling_and_feature_engineering(self)
+    df, transform_dict = _handle_scaling_and_feature_engineering(
+        self, min_lag_dict=min_lag_dict
+    )
 
     processed_df = _preprocess_prophet_names(self=self, df=df)
 

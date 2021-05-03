@@ -90,7 +90,7 @@ def test__split_scale_and_feature_engineering():
         train_index, test_index, min_lag_dict={"sales_int": 6}
     )
 
-    assert "sales_int" not in train.columns
+    assert not set(["sales_int_lag1", "sales_int_lag2"]).issubset(train.columns)
     assert "sales_int_lag7" in train.columns
 
     # then test the values
@@ -193,10 +193,28 @@ def test_predict():
     fframe.predict(
         future_periods=10,
         model="prophet",
-        min_lag_dict={"sales_float": 2, "sales_int": 3},
+        min_lag_dict={"sales_float": 3, "sales_int": 2},
     )
 
     results = fframe.predictions
+
+    assert set(
+        [
+            "sales_int_lag2",
+            "sales_int_lag3",
+            "sales_int_lag4",
+            "sales_float_lag3",
+            "sales_float_lag4",
+        ]
+    ).issubset(set(results.columns))
+
+    assert not set(
+        [
+            "sales_int_lag1",
+            "sales_float_lag1",
+            "sales_float_lag2",
+        ]
+    ).issubset(set(results.columns))
 
     assert set(
         fframe.hierarchy
@@ -239,18 +257,14 @@ def test_cross_validate():
     fframe.lag_features(features="sales", lags=[1, 2, 3, 4])
 
     fframe.cross_validate(
-        future_periods=10, model="lightgbm", min_lag_dict={"sales": 2}, folds=3
+        future_periods=10, model="lightgbm", min_lag_dict={"sales": 3}, folds=3
     )
 
     results = fframe.predictions
 
+    assert not set(["sales_lag1", "sales_lag2"]).issubset((set(results.columns)))
     assert set(
-        fframe.hierarchy
-        + [
-            f"predicted_{fframe.target}",
-            f"predicted_{fframe.target}_upper",
-            f"predicted_{fframe.target}_lower",
-        ]
+        fframe.hierarchy + [f"predicted_{fframe.target}", "sales_lag3", "sales_lag4"]
     ).issubset(set(results.columns))
 
 
@@ -267,14 +281,14 @@ def test_get_errors():
 
 
 if __name__ == "__main__":
-    test_cross_validate()
+    test__split_scale_and_feature_engineering()
     test__make_future_dataframe()
     test_predict()
+    test_cross_validate()
     test__merge_actuals()
     test_get_errors()
     test_get_errors()
     test__run_ensembles()
-    test__split_scale_and_feature_engineering()
     test__run_scaler_pipeline()
 
     print("Finished with model tests!")
