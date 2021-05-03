@@ -207,6 +207,7 @@ def _get_lightgbm_cv(
     model_type: str = "regression",
     folds: int = 5,
     gap: int = 0,
+    min_lag_dict: dict = None,
     **kwargs,
 ):
     """
@@ -228,6 +229,8 @@ def _get_lightgbm_cv(
         Number of folds to use during cross-valdation
     gap : int, default 0
         Number of periods to skip in between test and training folds.
+    min_lag_dict : dict, default None
+        If user passes a dictionary of {column_name: minimum lag value}, any lag values less than this threshold will be deleted prior to modeling
     """
 
     import itertools
@@ -255,7 +258,7 @@ def _get_lightgbm_cv(
         )
 
         train, test, transform_dict = self._split_scale_and_feature_engineering(
-            train_index, test_index
+            train_index, test_index, min_lag_dict=min_lag_dict
         )
 
         estimator_dict = _grid_search_lightgbm_params(
@@ -619,7 +622,9 @@ def _run_feature_engineering(self, data):
     return final_output
 
 
-def _split_scale_and_feature_engineering(self, train_index, test_index):
+def _split_scale_and_feature_engineering(
+    self, train_index, test_index, min_lag_dict: None
+):
     """
     Split dataframe into training and test sets after scaling and adding features.
     Purposefully designed this way to avoid leaking information during feature eng.
@@ -657,6 +662,24 @@ def _split_scale_and_feature_engineering(self, train_index, test_index):
     _reset_date_index(self=self, df=combined_data)
 
     final_data = self._run_feature_engineering(combined_data)
+
+    # drop columns that don't satisfy lag condition if requested by user:
+    if min_lag_dict:
+        for column_name, lag_value in min_lag_dict.items():
+            affected_columns = [
+                col for col in final_data.columns if col.startswith(column_name)
+            ]
+
+            for col in affected_columns:
+                if col.split("_lag")[-1].isdigit():
+                    if int(col.split("_lag")[-1]) > lag_value:
+                        affected_columns.remove(col)
+                    else:
+                        continue
+                else:
+                    continue
+
+            final_data.drop(affected_columns, axis=1, inplace=True)
 
     # resplit data
     final_train, final_test = [
@@ -1074,6 +1097,7 @@ def _get_prophet_cv(
     splitter: object = LeaveOneGroupOut,
     folds: int = 5,
     gap: int = 0,
+    min_lag_dict: dict = None,
     **kwargs,
 ):
     """
@@ -1091,6 +1115,8 @@ def _get_prophet_cv(
         Number of folds to use during cross-valdation
     gap : int, default 0
         Number of periods to skip in between test and training folds.
+    min_lag_dict : dict, default None
+        If user passes a dictionary of {column_name: minimum lag value}, any lag values less than this threshold will be deleted prior to modeling
     """
 
     import itertools
@@ -1117,7 +1143,7 @@ def _get_prophet_cv(
     for fold, [train_index, test_index] in enumerate(time_splits):
 
         train, test, transform_dict = self._split_scale_and_feature_engineering(
-            train_index, test_index
+            train_index, test_index, min_lag_dict=min_lag_dict
         )
 
         train, test = [

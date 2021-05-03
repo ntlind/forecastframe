@@ -76,7 +76,7 @@ def test__split_scale_and_feature_engineering():
     fframe.calc_days_since_release()
     fframe.calc_datetime_features()
     fframe.calc_percent_change()
-    fframe.lag_features(lags=[1, 2], features=["sales_int"])
+    fframe.lag_features(lags=[1, 2, 7, 14], features=["sales_int"])
     fframe.calc_statistical_features(
         windows=[2, 4], features=["sales_int", "sales_float"], aggregations=["mean"]
     )
@@ -85,8 +85,18 @@ def test__split_scale_and_feature_engineering():
     train_index = fframe.data.index < date
     test_index = fframe.data.index >= date
 
+    # first, test min_lag_dict
     train, test, transform_dict = fframe._split_scale_and_feature_engineering(
-        train_index, test_index
+        train_index, test_index, min_lag_dict={"sales_int": 6}
+    )
+
+    assert "sales_int" not in train.columns
+    assert "sales_int_lag7" in train.columns
+
+    # then test the values
+    train, test, transform_dict = fframe._split_scale_and_feature_engineering(
+        train_index,
+        test_index,
     )
 
     train.sort_index(inplace=True)
