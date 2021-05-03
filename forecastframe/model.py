@@ -253,12 +253,12 @@ def _get_lightgbm_cv(
 
     for fold, [train_index, test_index] in enumerate(time_splits):
 
-        print(
-            f"Running fold {fold} of {len(time_splits)} with train size {len(train_index)} and test size {len(test_index)}"
-        )
-
         train, test, transform_dict = self._split_scale_and_feature_engineering(
             train_index, test_index, min_lag_dict=min_lag_dict
+        )
+
+        print(
+            f"Running fold {fold+1} of {len(time_splits)} with train shape {train.shape} and test shape {test.shape}"
         )
 
         estimator_dict = _grid_search_lightgbm_params(
@@ -622,8 +622,30 @@ def _run_feature_engineering(self, data):
     return final_output
 
 
+def _remove_min_lags(min_lag_dict, df, target):
+    for column_name, lag_value in min_lag_dict.items():
+        affected_columns = [col for col in df.columns if col.startswith(column_name)]
+
+        # we never want to delete our target column
+        if target in affected_columns:
+            affected_columns.remove(target)
+
+        for col in affected_columns:
+            if col.split("_lag")[-1].isdigit():
+                if int(col.split("_lag")[-1]) >= lag_value:
+                    affected_columns.remove(col)
+                else:
+                    continue
+            else:
+                continue
+
+        df.drop(affected_columns, axis=1, inplace=True)
+
+    return df
+
+
 def _split_scale_and_feature_engineering(
-    self, train_index, test_index, min_lag_dict: None
+    self, train_index, test_index, min_lag_dict=None
 ):
     """
     Split dataframe into training and test sets after scaling and adding features.
@@ -665,21 +687,9 @@ def _split_scale_and_feature_engineering(
 
     # drop columns that don't satisfy lag condition if requested by user:
     if min_lag_dict:
-        for column_name, lag_value in min_lag_dict.items():
-            affected_columns = [
-                col for col in final_data.columns if col.startswith(column_name)
-            ]
-
-            for col in affected_columns:
-                if col.split("_lag")[-1].isdigit():
-                    if int(col.split("_lag")[-1]) > lag_value:
-                        affected_columns.remove(col)
-                    else:
-                        continue
-                else:
-                    continue
-
-            final_data.drop(affected_columns, axis=1, inplace=True)
+        final_data = _remove_min_lags(
+            min_lag_dict=min_lag_dict, df=final_data, target=self.target
+        )
 
     # resplit data
     final_train, final_test = [
@@ -805,7 +815,14 @@ def _fit_lightgbm(data, target, model_type="regression", **kwargs):
 
 
 def _predict_lightgbm(
-    self, model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
+    self,
+    model_object,
+    df=None,
+    future_periods=None,
+    hierarchy=None,
+    min_lag_dict=None,
+    *args,
+    **kwargs,
 ):
     """
     Predicts future occurences
@@ -824,6 +841,9 @@ def _predict_lightgbm(
         df = df.copy(deep=True)
 
     df = df.drop(self.target, axis=1, errors="ignore")
+
+    if min_lag_dict:
+        df = _remove_min_lags(min_lag_dict=min_lag_dict, df=df, target=self.target)
 
     df.loc[:, f"predicted_{self.target}"] = model_object.predict(df)
 
@@ -931,7 +951,14 @@ def _fit_prophet(data, *args, **kwargs):
 
 
 def _predict_prophet(
-    self, model_object, df=None, future_periods=None, hierarchy=None, *args, **kwargs
+    self,
+    model_object,
+    df=None,
+    future_periods=None,
+    hierarchy=None,
+    min_lag_dict=None,
+    *args,
+    **kwargs,
 ):
     """
     A custom version of Prophet's .predict() method which doesn't discard columns.
@@ -965,6 +992,9 @@ def _predict_prophet(
         if df.shape[0] == 0:
             raise ValueError("Dataframe has no rows.")
         df = df.copy().reset_index()
+
+    if min_lag_dict:
+        df = _remove_min_lags(min_lag_dict=min_lag_dict, df=df, target=self.target)
 
     df = model_object.setup_dataframe(df)
 
@@ -1202,7 +1232,9 @@ def _handle_scaling_and_feature_engineering(self):
     return df, transform_dict
 
 
-def _get_lightgbm_predictions(self, future_periods, model_type="regression", **kwargs):
+def _get_lightgbm_predictions(
+    self, future_periods, model_type="regression", min_lag_dict=None, **kwargs
+):
     """Helper function to produce lgbm forecasts"""
     df, transform_dict = _handle_scaling_and_feature_engineering(self)
 
@@ -1215,6 +1247,7 @@ def _get_lightgbm_predictions(self, future_periods, model_type="regression", **k
         model_object=model_object,
         future_periods=future_periods,
         hierarchy=self.hierarchy,
+        min_lag_dct=min_lag_dict,
     )
 
     output.loc[:, f"predicted_{self.target}"] = self._descale_target(
@@ -1224,7 +1257,7 @@ def _get_lightgbm_predictions(self, future_periods, model_type="regression", **k
     return output, model_object
 
 
-def _get_prophet_predictions(self, future_periods, **kwargs):
+def _get_prophet_predictions(self, future_periods, min_lag_dict, **kwargs):
     """Helpers functions to produce prophet forecasts"""
 
     df, transform_dict = _handle_scaling_and_feature_engineering(self)
@@ -1238,6 +1271,7 @@ def _get_prophet_predictions(self, future_periods, **kwargs):
         model_object=model_object,
         future_periods=future_periods,
         hierarchy=self.hierarchy,
+        min_lag_dict=min_lag_dict,
     )
 
     output = _postprocess_prophet_names(self=self, df=predictions)
@@ -1249,7 +1283,7 @@ def _get_prophet_predictions(self, future_periods, **kwargs):
     return output, model_object
 
 
-def predict(self, model, future_periods=None, *args, **kwargs):
+def predict(self, model, future_periods=None, min_lag_dict=None, *args, **kwargs):
     """
     Predict the future using the data stored in your fframe
 
@@ -1259,6 +1293,8 @@ def predict(self, model, future_periods=None, *args, **kwargs):
         The modeling algorithm to use
     future_periods: int, default None
         The number of periods forward to predict. If None, returns in-sample predictions using training dataframe
+     min_lag_dict : dict, default None
+        If user passes a dictionary of {column_name: minimum lag value}, any lag values less than this threshold will be deleted prior to modeling
     """
 
     model_mappings = {
@@ -1274,7 +1310,11 @@ def predict(self, model, future_periods=None, *args, **kwargs):
 
     modeling_function = model_mappings[model]
     output, model_object = modeling_function(
-        self=self, future_periods=future_periods, *args, **kwargs
+        self=self,
+        future_periods=future_periods,
+        min_lag_dict=min_lag_dict,
+        *args,
+        **kwargs,
     )
 
     output = _merge_actuals(self, output)
@@ -1292,6 +1332,7 @@ def cross_validate(
     folds: int = 5,
     gap: int = 0,
     splitter: object = LeaveOneGroupOut,
+    min_lag_dict=None,
     **kwargs,
 ):
     """
@@ -1312,6 +1353,8 @@ def cross_validate(
         Number of periods to skip in between test and training folds.
     splitter : object, default LeaveOneGroupOut
         The strategy that sklearn uses to split your cross-validation set. Defaults to sklearn's LeaveOneGroupOut.
+     min_lag_dict : dict, default None
+        If user passes a dictionary of {column_name: minimum lag value}, any lag values less than this threshold will be deleted prior to modeling
     """
 
     model_mappings = {"prophet": _get_prophet_cv, "lightgbm": _get_lightgbm_cv}
@@ -1327,11 +1370,13 @@ def cross_validate(
         folds=folds,
         gap=gap,
         splitter=LeaveOneGroupOut,
+        min_lag_dict=min_lag_dict,
     )
 
     self.predict(
         model=model,
         future_periods=future_periods,
+        min_lag_dict=min_lag_dict,
         **self.cross_validations[-1][
             "best_params"
         ],  # pass the best parameters found via cross-validation for the last fold

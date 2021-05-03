@@ -187,11 +187,14 @@ def test_predict():
     fframe = testing.get_test_fframe()
 
     fframe.normalize_features(features=["sales_float"])
-    # fframe.calc_days_since_release()
     fframe.calc_datetime_features()
-    # fframe.calc_percent_change()
+    fframe.lag_features(features=["sales_int", "sales_float"], lags=[1, 2, 3, 4])
 
-    fframe.predict(future_periods=10, model="prophet")
+    fframe.predict(
+        future_periods=10,
+        model="prophet",
+        min_lag_dict={"sales_float": 2, "sales_int": 3},
+    )
 
     results = fframe.predictions
 
@@ -229,7 +232,26 @@ def test__make_future_dataframe():
 
 
 def test_cross_validate():
-    pass
+    fframe = testing.get_realistic_fframe()
+
+    fframe.normalize_features(features=["sales"])
+    fframe.calc_datetime_features()
+    fframe.lag_features(features="sales", lags=[1, 2, 3, 4])
+
+    fframe.cross_validate(
+        future_periods=10, model="lightgbm", min_lag_dict={"sales": 2}, folds=3
+    )
+
+    results = fframe.predictions
+
+    assert set(
+        fframe.hierarchy
+        + [
+            f"predicted_{fframe.target}",
+            f"predicted_{fframe.target}_upper",
+            f"predicted_{fframe.target}_lower",
+        ]
+    ).issubset(set(results.columns))
 
 
 def test_get_errors():
@@ -245,9 +267,9 @@ def test_get_errors():
 
 
 if __name__ == "__main__":
+    test_cross_validate()
     test__make_future_dataframe()
     test_predict()
-    test_cross_validate()
     test__merge_actuals()
     test_get_errors()
     test_get_errors()

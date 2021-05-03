@@ -82,7 +82,30 @@ def get_test_fframe(
 
 def _get_difference_threshold():
     """
-    Return desired threshold, measured as np.sum(np.abs((returend - answered))) 
+    Return desired threshold, measured as np.sum(np.abs((returend - answered)))
     in most cases.
     """
     return 1e-6
+
+
+def get_realistic_fframe():
+    """Get a realistic df for use in advanced testing"""
+    import os
+
+    directory = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(
+        directory,
+        "sample_data",
+        "weekly",
+        "small.csv",
+    )
+    data = pd.read_csv(data_path)
+
+    fframe = ff.ForecastFrame(
+        data=data,
+        hierarchy=["dept_id", "cat_id", "item_id", "state_id", "store_id"],
+        datetime_column="datetime",
+        target="sales",
+    )
+
+    return fframe
