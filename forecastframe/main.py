@@ -140,6 +140,7 @@ class ForecastFrame:
         plot_shap_dependence,
         plot_shap_waterfall,
         plot_components,
+        plot_error_distributions,
     )
 
     def __repr__(self):

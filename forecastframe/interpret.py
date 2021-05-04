@@ -15,6 +15,24 @@ from forecastframe.utilities import (
 import forecastframe.model as model
 
 
+# Set up altair theme
+def Lato():
+    font = "Arial"
+
+    return {
+        "config": {
+            "title": {"font": font},
+            "axis": {"labelFont": font, "titleFont": font},
+            "header": {"labelFont": font, "titleFont": font},
+            "legend": {"labelFont": font, "titleFont": font},
+        }
+    }
+
+
+alt.themes.register("Lato", Lato)
+alt.themes.enable("Lato")
+
+
 def _format_percentage(percentage):
     return "{:.2%}".format(percentage)
 
@@ -624,6 +642,92 @@ def summarize_cv(self):
         "performance": performance_summary,
         "recommendation": recommendation_summary,
     }
+
+
+def plot_error_distributions(
+    self,
+    error_type="Absolute Percent Error",
+    x_axis_title="",
+    y_axis_title="",
+    scheme="tealblues",
+    height=75,
+    width=300,
+):
+    """
+    Plot an error distribution for each fold via altair
+    """
+
+    if not x_axis_title:
+        x_axis_title = error_type
+
+    def _get_errors_by_fold(self, error_type="Absolute Percent Error"):
+        cv_errors = self.get_cross_validation_errors(describe=False)
+
+        fold_df = []
+        for index, fold in enumerate(cv_errors):
+            for sample in ["In-Sample", "Out-of-Sample"]:
+                df = fold[sample].loc[:, [error_type]].reset_index()
+                df["Fold"] = index + 1
+                df["Sample"] = sample
+                fold_df.append(df)
+
+        final_df = pd.concat(fold_df, axis=0)
+        return final_df
+
+    def _get_melted_fold_errors(self, error_type="Absolute Percent Error"):
+        errors_df = _get_errors_by_fold(self=self, error_type=error_type)
+
+        return pd.melt(
+            errors_df, id_vars=["Fold", "Sample"], value_vars=[error_type]
+        ).drop("variable", axis=1)
+
+        # fold_df = [pd.concat([fold['In-Sample'][error_type].rename({error_type:"IS"}), fold['Out-of-Sample'][error_type]], axis=1) for fold in cv_errors]
+        return final_df
+
+    def _plot_melted_boxplot(
+        melted_df,
+        x_axis_title="",
+        y_axis_title="",
+        scheme="tealblues",
+        height=75,
+        width=300,
+    ):
+
+        # Schemes https://vega.github.io/vega/docs/schemes/#reference
+        fig = (
+            alt.Chart(melted_df)
+            .mark_boxplot(outliers=False)
+            .encode(
+                y=alt.Column("Sample:O", title=y_axis_title),
+                x=alt.Column("value:Q", title=x_axis_title),
+                color=alt.Column(
+                    "Fold:O",
+                    title="",
+                    legend=None,
+                    scale=alt.Scale(scheme=scheme),
+                ),
+                row=alt.Column(
+                    "Fold",
+                    title="Folds",
+                    header=alt.Header(labelAngle=1, labelFontSize=14, labelPadding=0),
+                ),
+            )
+            .properties(width=width, height=height)
+            .interactive()
+        )
+
+        return fig
+
+    melted_df = _get_melted_fold_errors(self=self, error_type=error_type)
+
+    return _plot_melted_boxplot(
+        melted_df=melted_df,
+        x_axis_title=x_axis_title,
+        y_axis_title=y_axis_title,
+        scheme=scheme,
+        height=height,
+        width=width,
+    )
 
 
 # Old plotting code (TODO delete)
