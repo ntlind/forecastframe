@@ -141,6 +141,7 @@ class ForecastFrame:
         plot_shap_waterfall,
         plot_components,
         plot_error_distributions,
+        plot_predictions_over_time,
     )
 
     def __repr__(self):

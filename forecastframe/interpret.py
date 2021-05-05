@@ -730,6 +730,80 @@ def plot_error_distributions(
     )
 
 
+def plot_predictions_over_time(
+    self, fold=-1, width=400, height=300, scheme="tealblues"
+):
+    """
+    Return a dictionary showing predictions and actuals over time for both "IS"
+    and "OOS".
+
+    Parameters
+    ----------
+    groupers : List[str], default None
+        Optional parameter to create color labels for your grouping columns.
+    """
+
+    data = (
+        _get_fold_predictions(self=self, fold=fold)
+        .reset_index()
+        .rename(
+            {self.target: "Actuals", f"predicted_{self.target}": "Predictions"}, axis=1
+        )
+    )
+
+    melted_data = data.melt(
+        id_vars=[self.datetime_column, "Fold"],
+        var_name="Type",
+        value_name="Values",
+    )
+
+    fig = (
+        alt.Chart(melted_data)
+        .mark_line()
+        .encode(
+            x=f"{self.datetime_column}:T",
+            y=f"Values",
+            color=alt.Column(
+                "Type:O",
+                title="",
+                scale=alt.Scale(scheme=scheme),
+            ),
+            strokeDash=alt.Column(
+                "Fold:O",
+                title="",
+            ),
+            tooltip=[
+                "Fold:O",
+                "Type",
+                alt.Tooltip(
+                    field="Values",
+                    format=".2f",
+                    type="quantitative",
+                ),
+                f"yearmonthdate({self.datetime_column})",
+            ],
+        )
+        .configure_axis(grid=False)
+        .configure_view(strokeWidth=0)
+        .properties(width=width, height=height)
+        .interactive()
+    )
+
+    return fig
+
+
+def _get_fold_predictions(self, fold=-1):
+    insample_df = self.cross_validations[fold]["train"][
+        [self.target, f"predicted_{self.target}"]
+    ].assign(Fold="In-Sample")
+
+    oos_df = self.cross_validations[fold]["test"][
+        [self.target, f"predicted_{self.target}"]
+    ].assign(Fold="Out-of-Sample")
+
+    return pd.concat([insample_df, oos_df], axis=0)
+
+
 # Old plotting code (TODO delete)
 
 # def _melt_dataframe_for_visualization(data, group_name, error):
