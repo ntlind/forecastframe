@@ -142,6 +142,7 @@ class ForecastFrame:
         plot_components,
         plot_error_distributions,
         plot_predictions_over_time,
+        plot_forward_predictions,
     )
 
     def __repr__(self):

@@ -730,6 +730,58 @@ def plot_error_distributions(
     )
 
 
+def plot_forward_predictions(self, width=400, height=300, scheme="tealblues"):
+    """
+    Plot forward-looking predictions
+    """
+    melted_data = (
+        self.predictions.reset_index()
+        .rename(
+            {self.target: "Actuals", f"predicted_{self.target}": "Predictions"},
+            axis=1,
+        )
+        .melt(
+            id_vars=[self.datetime_column],
+            value_vars=["Actuals", "Predictions"],
+            var_name="Type",
+            value_name="Values",
+        )
+    )
+
+    fig = (
+        alt.Chart(melted_data)
+        .mark_line()
+        .encode(
+            x=f"{self.datetime_column}:T",
+            y=f"Values",
+            color=alt.Column(
+                "Type:O",
+                title="",
+                scale=alt.Scale(scheme=scheme),
+            ),
+            strokeDash=alt.Column(
+                "Type:O",
+                title="",
+            ),
+            tooltip=[
+                "Type",
+                alt.Tooltip(
+                    field="Values",
+                    format=".2f",
+                    type="quantitative",
+                ),
+                f"yearmonthdate({self.datetime_column})",
+            ],
+        )
+        .configure_axis(grid=False)
+        .configure_view(strokeWidth=0)
+        .properties(width=width, height=height)
+        .interactive()
+    )
+
+    return fig
+
+
 def plot_predictions_over_time(
     self, fold=-1, width=400, height=300, scheme="tealblues"
 ):
