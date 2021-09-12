@@ -370,9 +370,12 @@ def encode_categoricals(self):
     """
     object_columns = utilities._get_columns_of_type(self.data, include="object")
 
-    self.data[object_columns] = self.data[object_columns].astype("category")
-
     category_columns = utilities._get_columns_of_type(self.data, include="category")
+
+    if not object_columns and not category_columns:
+        return None
+
+    self.data[object_columns] = self.data[object_columns].astype("category")
 
     self.categorical_keys.update(
         {
