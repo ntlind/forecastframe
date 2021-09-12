@@ -710,11 +710,13 @@ def _split_scale_and_feature_engineering(
         self=self, df_to_update=final_test, second_df=unmasked_scaled_test
     )
 
-    # cast final_test to be the same type as original data
+    # cast target to be the same type as in original data
     final_train[self.target] = final_train[self.target].astype(
         unmasked_scaled_test.dtypes[self.target]
     )
-    final_test = final_test.astype(unmasked_scaled_test.dtypes[self.target])
+    final_test[self.target] = final_test[self.target].astype(
+        unmasked_scaled_test.dtypes[self.target]
+    )
 
     return final_train, final_test, transform_dict
 
