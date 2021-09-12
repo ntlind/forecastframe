@@ -1024,25 +1024,19 @@ def get_predictions(self):
         self.model
     ), "Please run .predict or .cross-validate before callign this function"
 
-    col_dict = {
-        "prophet": [
-            "trend",
-            f"predicted_{self.target}",
-            self.target,
-        ],
-        "lightgbm": [f"predicted_{self.target}", self.target],
-    }
+    columns_to_keep = [self.target, f"predicted_{self.target}"]
 
-    columns_to_keep = col_dict[self.model]
+    if self.hierarchy:
+        columns_to_keep = columns_to_keep + self.hierarchy
+
+    if self.model == "prophet":
+        columns_to_keep += ["trend"]
 
     if f"predicted_{self.target}_lower" in self.predictions.columns:
         columns_to_keep += [
             f"predicted_{self.target}_upper",
             f"predicted_{self.target}_lower",
         ]
-
-    if self.hierarchy:
-        columns_to_keep = columns_to_keep + self.hierarchy
 
     decoded_output = self.decode_categoricals(data=self.predictions)
 
