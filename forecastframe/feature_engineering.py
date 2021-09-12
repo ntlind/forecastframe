@@ -701,18 +701,23 @@ def _get_transformed_column_names(
 
 
 def _calc_percent_change(data, feature, groupers, lag, column_name):
-    """Helper function for calculating the percent change in some column
+    """Helper function for calculating the percent change in some column"""
 
-    NOTE: groupby(groupers).pct_change() wasn't producing the desired outputs,
-          so used lambda instead
-    """
+    if groupers is not None:
+        data[column_name] = (
+            data.groupby(groupers)[feature]
+            .shift(lag)
+            .pct_change(fill_method=None)
+            .replace([-np.inf, np.inf], np.nan)
+        )
 
-    data[column_name] = (
-        data.groupby(groupers)[feature]
-        .shift(lag)
-        .pct_change(fill_method=None)
-        .replace([-np.inf, np.inf], np.nan)
-    )
+    else:
+        data[column_name] = (
+            data[feature]
+            .shift(lag)
+            .pct_change(fill_method=None)
+            .replace([-np.inf, np.inf], np.nan)
+        )
 
     return data
 
@@ -764,11 +769,11 @@ def calc_percent_change(
 
     if not groupers:
         grouper_cols = self.hierarchy
-        col_name = f"{feature}_pct_change"
+        col_name = f"{feature}_pct_change_lag{lag}"
     else:
         grouper_cols = groupers["columns"]
         name = groupers["name"]
-        col_name = f"{feature}_{name}_pct_change"
+        col_name = f"{feature}_{name}_pct_change_lag{lag}"
 
     if not feature:
         feature = self.target
