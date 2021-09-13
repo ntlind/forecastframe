@@ -140,7 +140,7 @@ def _reset_multi_index(self, df, hierarchy=None):
     return output
 
 
-def _join_new_columns(self, second_df, attribute, index=None):
+def _join_new_columns(self, second_df, attribute, index=None, append_cols=None):
     """
     Joins back a set of aggregated columns using the hierarchy index
 
@@ -165,7 +165,11 @@ def _join_new_columns(self, second_df, attribute, index=None):
         errors="ignore",
     )
 
-    return data.merge(second_df, how="left", on=join_columns)
+    if append_cols is not None:
+        data[append_cols] = second_df.values
+        return data
+    else:
+        return data.merge(second_df, how="left", on=join_columns)
 
 
 def _update_values(self, df_to_update, second_df):

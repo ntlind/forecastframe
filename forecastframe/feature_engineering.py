@@ -366,8 +366,7 @@ def calc_statistical_features(
     """
 
     def _handle_hierarchical_statistics():
-        # NOTE: you have to use .apply when applying two functions
-        # (e.g., rolling + shift) to a DataFrameGroupBy
+
         calcs = processed_data.groupby(groupby_cols, dropna=False)[features].apply(
             lambda x: x.shift(lag)
             .rolling(str(window) + "D", min_periods=min_period)
@@ -379,6 +378,9 @@ def calc_statistical_features(
         else:
             column_names = [f"{column}_{aggregations[0]}" for column in calcs.columns]
 
+        # get the groupby index we need to join on since pandas drops our groupby index
+        calcs.index = processed_data.set_index(groupby_cols, append=True).index
+
         calcs.columns = _get_transformed_column_names(
             features=column_names,
             window=window,
@@ -388,7 +390,9 @@ def calc_statistical_features(
         )
 
         final_output = self._join_new_columns(
-            second_df=calcs, index=groupby_cols, attribute=attribute
+            second_df=calcs,
+            index=groupby_cols,
+            attribute=attribute,
         )
 
         setattr(self, attribute, final_output)
@@ -552,10 +556,14 @@ def calc_ewma(
     ):
         # NOTE: passing the .agg argument in a list is actually important,
         # otherwise pandas won't return the grouper index
-        calcs = data.groupby(groupby_cols, dropna=False)[features].apply(
-            lambda x: x.shift(lag)
-            .ewm(span=window, min_periods=min_period, *args, **kwargs)
-            .agg(["mean"])
+        calcs = (
+            data.set_index(groupby_cols, append=True)
+            .groupby(groupby_cols, dropna=False)[features]
+            .apply(
+                lambda x: x.shift(lag)
+                .ewm(span=window, min_periods=min_period, *args, **kwargs)
+                .agg(["mean"])
+            )
         )
 
         calcs.columns = _get_transformed_column_names(
@@ -914,6 +922,8 @@ def calc_percent_relative_to_threshold(
             .rolling(str(window) + "D", min_periods=min_period)
             .agg(["mean"])
         )
+
+        calcs.index = processed_data.set_index(groupby_cols, append=True).index
 
         calcs.columns = _get_transformed_column_names(
             designator=f"_perc_{operator}{threshold}",

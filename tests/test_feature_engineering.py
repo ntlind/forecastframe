@@ -301,11 +301,11 @@ def test_attribute():
 
     fframe.calc_percent_change()
     assert initial_data.equals(fframe.data)
-    assert "sales_int_pct_change" in fframe.sample.columns
+    assert "sales_int_pct_change_lag1" in fframe.sample.columns
 
     fframe.calc_percent_change(attribute="data")
-    assert "sales_int_pct_change" in fframe.data.columns
-    assert "sales_int_pct_change" in fframe.sample.columns
+    assert "sales_int_pct_change_lag1" in fframe.data.columns
+    assert "sales_int_pct_change_lag1" in fframe.sample.columns
 
     # try it with a different function as well
     fframe = testing.get_test_fframe()
