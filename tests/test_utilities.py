@@ -87,7 +87,7 @@ def test_calc_percent_change():
 
     fframe.calc_percent_change()
 
-    result = fframe.sample["sales_int_pct_change"].values
+    result = fframe.sample["sales_int_pct_change_lag1"].values
 
     answer = np.array(
         [
