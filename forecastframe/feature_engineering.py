@@ -226,6 +226,16 @@ def lag_features(self, features: list, lags: list, attribute: str = "sample"):
         later processing.
     """
 
+    def _cast_targets_to_float(self, df):
+        """If the target was lagged, ensure that its lagged features are cast to flow to avoid cat_cols error in lightgbm"""
+
+        target_cols = [col for col in df.columns if f"{self.target}_lag" in col]
+
+        if target_cols:
+            df[target_cols] = df[target_cols].astype(float)
+
+        return df
+
     if attribute == "sample":
         self.function_list.append((lag_features, {"features": features, "lags": lags}))
 
@@ -245,10 +255,14 @@ def lag_features(self, features: list, lags: list, attribute: str = "sample"):
         if self.hierarchy:
             data[column_names] = data.groupby(self.hierarchy)[features].shift(lag)
 
+            data = _cast_targets_to_float(self, data)
+
             setattr(self, attribute, data)
 
         else:
             data[column_names] = data[features].shift(lag)
+
+            data = _cast_targets_to_float(self, data)
 
             setattr(self, attribute, data)
 
