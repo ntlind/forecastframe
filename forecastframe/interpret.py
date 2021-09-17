@@ -261,9 +261,11 @@ def _calc_shap_values(self, data=None):
     Calculaute SHAP values for use in various plots
     """
     if data is None:
-        data = _get_data_to_analyze(self=self).drop(
-            [self.target, f"predicted_{self.target}"], axis=1
-        )
+        columns_to_keep = [
+            col for col in self.model_object.history.columns if col != self.target
+        ]
+
+        data = _get_data_to_analyze(self=self)[columns_to_keep]
 
     explainer = shap.TreeExplainer(self.model_object)
     self.shap = {
