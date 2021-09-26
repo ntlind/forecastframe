@@ -6,7 +6,7 @@ import pickle
 import os
 
 
-def save_fframe(self, name="ForecastFrame.pkl", path=os.getcwd() + "\\"):
+def save_fframe(self, name="forecastframe.pkl", path=os.getcwd()):
     """
     Save the ForecastFrame as a pickle.
 
@@ -17,7 +17,9 @@ def save_fframe(self, name="ForecastFrame.pkl", path=os.getcwd() + "\\"):
     path : Path, default os.getcwd()
         The path you want to save the pickle to.
     """
-    with open(path + name, "wb") as file:
+    location = os.path.join(path, name)
+    print(f"Saving to {location}...")
+    with open(location, "wb") as file:
         pickle.dump(self, file)
 
 
