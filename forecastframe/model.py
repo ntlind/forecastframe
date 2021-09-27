@@ -1024,7 +1024,7 @@ def _predict_prophet(
     return output_df
 
 
-def get_predictions(self, append_hierarchy_col=False):
+def get_predictions(self, append_hierarchy_col=False, full_output=False):
     """
     Removes unnecessary columns from predictions dataframe and outputs the result for the user
     """
@@ -1068,7 +1068,10 @@ def get_predictions(self, append_hierarchy_col=False):
         decoded_output = _append_hierarchy_col(df=decoded_output, self=self)
         columns_to_keep.append("hierarchy")
 
-    return decoded_output[columns_to_keep]
+    if full_output:
+        decoded_output
+    else:
+        return decoded_output[columns_to_keep]
 
 
 def _grid_search_prophet_params(
