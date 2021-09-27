@@ -99,6 +99,7 @@ def get_realistic_fframe():
         "weekly",
         "small.csv",
     )
+
     data = pd.read_csv(data_path)
 
     fframe = ff.ForecastFrame(

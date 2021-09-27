@@ -23,7 +23,7 @@ def save_fframe(self, name="forecastframe.pkl", path=os.getcwd()):
         pickle.dump(self, file)
 
 
-def load_fframe(name="ForecastFrame.pkl", path=os.getcwd() + "\\"):
+def load_fframe(name="forecastframe.pkl", path=os.getcwd()):
     """
     Load the ForecastFrame from a pickle.
 
@@ -34,7 +34,7 @@ def load_fframe(name="ForecastFrame.pkl", path=os.getcwd() + "\\"):
     path : Path, default os.getcwd()
         The path you want to load the pickle from.
     """
-    with (open(path + name, "rb")) as file:
+    with (open(os.path.join(path, name), "rb")) as file:
         fframe = pickle.load(file)
 
     return fframe
