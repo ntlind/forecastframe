@@ -180,23 +180,21 @@ def _merge_actuals(self, prediction_df):
         merged_values = prediction_df.merge(
             self.data.loc[
                 ~self.data[self.target].isnull(),
-                [self.target, self.datetime] + self.hierarchy,
+                [self.target] + self.hierarchy,
             ],
             on=[self.datetime_column] + self.hierarchy,
             how="outer",
         )
     else:
         merged_values = prediction_df.merge(
-            self.data.loc[
-                ~self.data[self.target].isnull(), [self.target, self.datetime]
-            ],
+            self.data.loc[~self.data[self.target].isnull(), [self.target]],
             on=[self.datetime_column],
             how="outer",
         )
 
     assert len(merged_values) == len(
         prediction_df
-    ), f"Something went wrong when merging your actuals back to your predictions merged_values."
+    ), f"Something went wrong when merging your actuals back to your predictions merged_values. Did you forget to select your hierarchy columns?"
 
     return merged_values
 
