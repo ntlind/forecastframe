@@ -192,6 +192,7 @@ def _merge_actuals(self, prediction_df):
             how="outer",
         )
 
+    merged_values.to_csv("ERROR.csv")
     assert len(merged_values) == len(
         prediction_df
     ), f"Something went wrong when merging your actuals back to your predictions. merged_values: {merged_values.shape} {merged_values.columns} prediction_df: {prediction_df.shape} {prediction_df.columns}"
