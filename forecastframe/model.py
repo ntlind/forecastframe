@@ -194,7 +194,7 @@ def _merge_actuals(self, prediction_df):
 
     assert len(merged_values) == len(
         prediction_df
-    ), "Something went wrong when merging your actuals back to your predictions"
+    ), f"Something went wrong when merging your actuals back to your predictions. merged_values: {merged_values.shape} {merged_values.columns} prediction_df: {prediction_df.shape} {prediction_df.columns}"
 
     return merged_values
 
@@ -1062,7 +1062,7 @@ def get_predictions(self, append_hierarchy_col=False, full_output=False):
             f"predicted_{self.target}_lower",
         ]
 
-    decoded_output = self.decode_categoricals(data=self.predictions)
+    decoded_output = self.decode_categoricals(data=self.predictions).copy(deep=True)
 
     if append_hierarchy_col:
         decoded_output = _append_hierarchy_col(df=decoded_output, self=self)
