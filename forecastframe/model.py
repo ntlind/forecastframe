@@ -1069,7 +1069,7 @@ def get_predictions(self, append_hierarchy_col=False, full_output=False):
         columns_to_keep.append("hierarchy")
 
     if full_output:
-        decoded_output
+        return decoded_output
     else:
         return decoded_output[columns_to_keep]
 
