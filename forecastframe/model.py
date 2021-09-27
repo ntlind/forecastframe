@@ -1024,10 +1024,26 @@ def _predict_prophet(
     return output_df
 
 
-def get_predictions(self):
+def get_predictions(self, append_hierarchy_col=False):
     """
     Removes unnecessary columns from predictions dataframe and outputs the result for the user
     """
+
+    def _append_hierarchy_col(df, self):
+        """
+        Append a concatenated string column containing every hierarchy col to both the data and predictions dfs
+        """
+        if self.hierarchy is None:
+            print("No hierarchy columns detected; skipping append_hierachy_col..")
+            pass
+
+        def _concat_string_cols(row):
+            return "-".join(row.values.astype(str))
+
+        df["hierarchy"] = df[self.hierarchy].apply(_concat_string_cols, axis=1)
+
+        return df
+
     assert (
         self.model
     ), "Please run .predict or .cross-validate before callign this function"
@@ -1047,6 +1063,10 @@ def get_predictions(self):
         ]
 
     decoded_output = self.decode_categoricals(data=self.predictions)
+
+    if append_hierarchy_col:
+        decoded_output = _append_hierarchy_col(df=decoded_output, self=self)
+        columns_to_keep.append("hierarchy")
 
     return decoded_output[columns_to_keep]
 

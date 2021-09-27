@@ -78,6 +78,7 @@ class ForecastFrame:
         to_pandas,
         get_sample,
         format_dates,
+        append_hierarchy_col,
         print_missing_percentages,
         _assert_features_in_list,
         _assert_features_not_in_list,
