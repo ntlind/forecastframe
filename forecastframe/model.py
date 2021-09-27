@@ -177,8 +177,7 @@ def _merge_actuals(self, prediction_df):
         return prediction_df
 
     if self.hierarchy:
-        data = prediction_df
-        merged_values = data.merge(
+        merged_values = prediction_df.merge(
             self.data.loc[
                 ~self.data[self.target].isnull(), [self.target] + self.hierarchy
             ],
@@ -192,7 +191,8 @@ def _merge_actuals(self, prediction_df):
             how="outer",
         )
 
-    data.to_csv("ERROR_data.csv")
+    self.data.to_csv("ERROR_data.csv")
+    prediction_df.to_csv("ERROR_prediction_df.csv")
     merged_values.to_csv("ERROR_merged.csv")
     assert len(merged_values) == len(
         prediction_df
