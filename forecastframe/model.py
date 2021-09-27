@@ -179,24 +179,24 @@ def _merge_actuals(self, prediction_df):
     if self.hierarchy:
         merged_values = prediction_df.merge(
             self.data.loc[
-                ~self.data[self.target].isnull(), [self.target] + self.hierarchy
+                ~self.data[self.target].isnull(),
+                [self.target, self.datetime] + self.hierarchy,
             ],
             on=[self.datetime_column] + self.hierarchy,
             how="outer",
         )
     else:
         merged_values = prediction_df.merge(
-            self.data.loc[~self.data[self.target].isnull(), self.target],
+            self.data.loc[
+                ~self.data[self.target].isnull(), [self.target, self.datetime]
+            ],
             on=[self.datetime_column],
             how="outer",
         )
 
-    self.data.to_csv("ERROR_data.csv")
-    prediction_df.to_csv("ERROR_prediction_df.csv")
-    merged_values.to_csv("ERROR_merged.csv")
     assert len(merged_values) == len(
         prediction_df
-    ), f"Something went wrong when merging your actuals back to your predictions. merged_values: {merged_values.shape} {merged_values.columns} prediction_df: {prediction_df.shape} {prediction_df.columns}"
+    ), f"Something went wrong when merging your actuals back to your predictions merged_values."
 
     return merged_values
 
