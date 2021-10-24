@@ -120,9 +120,9 @@ so that you can focus on feature creation, model interpretation, and delivery.
   - Filling gaps over time ✅
   - Ability to add noise to ratio features
   
-## Example
+## Examples
 
-See our example notebook here (need link.)
+See the latest examples in [`/examples`](https://github.com/ntlind/forecastframe/tree/main/examples)
 
 
 ## License
