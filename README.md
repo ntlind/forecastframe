@@ -127,7 +127,7 @@ See our example notebook here (need link.)
 
 ## License
 
-This software isn't available for commercial use at this time. Please reach out to us at `hello@quantilegroup.com` with any inquiries.
+This software isn't available for commercial use at this time. Please reach out to us at `nick@quantile.app` with any inquiries.
 
 ## Installation
 
@@ -135,4 +135,4 @@ This software isn't available for commercial use at this time. Please reach out 
 
 ## Have feedback?
 
-We'd love to hear it! Send us your thoughts at hello@quantilegroup.com
+We'd love to hear it! Send us your thoughts at nick@quantile.app.
