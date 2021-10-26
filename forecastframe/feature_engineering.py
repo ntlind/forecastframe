@@ -461,8 +461,9 @@ def calc_statistical_features(
         utilities._ensure_is_list(obj) for obj in [features, windows, aggregations]
     ]
 
+    # if groupers aren't passed, default to the hierarchy if there is one
     if not groupers:
-        if self.hierarchy is None:
+        if (self.hierarchy is None) | (self.hierarchy == list()):
             groupby_cols = None
         else:
             grouper_name = None
@@ -548,7 +549,6 @@ def calc_ewma(
         features,
         window,
         min_period,
-        groupoer_name,
         groupby_cols,
         crossovers,
         *args,
@@ -626,7 +626,7 @@ def calc_ewma(
     data = getattr(self, attribute)
 
     if not groupers:
-        if self.hierarchy is None:
+        if (self.hierarchy is None) | (self.hierarchy == list()):
             groupby_cols = None
         else:
             grouper_name = None
