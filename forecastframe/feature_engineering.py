@@ -666,7 +666,6 @@ def calc_ewma(
                 window=window,
                 min_period=min_period,
                 groupby_cols=groupby_cols,
-                groupoer_name=grouper_name,
                 crossovers=crossovers,
                 *args,
                 **kwargs,

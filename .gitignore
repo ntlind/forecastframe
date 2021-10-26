@@ -9,4 +9,4 @@ __pycache__/
 inprogress/
 TODOs.txt
 forecastframe/dev
-blah.csv
+forecastframe.egg-info
