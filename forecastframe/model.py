@@ -1156,7 +1156,6 @@ def _postprocess_prophet_names(self, df):
 def _get_prophet_cv(
     self,
     params: dict = None,
-    splitter: object = LeaveOneGroupOut,
     folds: int = 5,
     gap: int = 0,
     min_lag_dict: dict = None,
@@ -1170,9 +1169,6 @@ def _get_prophet_cv(
     ----------
     params : dict, default None
         A dictionary of Propeht parameters to explore. If none, uses a default "light" dict.
-    splitter : object, default LeaveOneGroupOut
-        The strategy that sklearn uses to split your cross-validation set. Defaults to
-        LeaveOneGroupOut.
     folds : int, default 5
         Number of folds to use during cross-valdation
     gap : int, default 0
