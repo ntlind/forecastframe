@@ -3,6 +3,19 @@ import numpy as np
 import pytest
 
 
+def _check_prophet_availability(model, fallback="lightgbm"):
+    """Check if fbprophet is importable and, if it isn't, fall back to another model"""
+    if model == "prophet":
+        try:
+            import fbprophet as prophet
+            return "prophet"
+        except ImportError:
+            print(f"fbprophet not found on this device. Falling back to {fallback}..")
+            return "lightgbm"
+    else:
+        return model
+
+
 @pytest.mark.skip(reason="simple python functionality")
 def _assert_features_in_list(features, list_to_check, message):
     """
@@ -65,6 +78,7 @@ def _filter_on_infs_nans(data):
 def to_pandas(self):
     """Convert the ForecastFrame to be a pandas dataframe"""
     return self.data
+
 
 
 @pytest.mark.skip(reason="simple python functionality")

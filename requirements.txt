@@ -1,3 +1,9 @@
-
-pystan==2.19.1.1
--r ./prod-requirements.txt
+pandas
+numpy
+pytest
+shap
+sklearn
+psutil
+tqdm
+lightgbm
+altair

@@ -18,6 +18,7 @@ from forecastframe.utilities import (
     _update_values,
     _reset_date_index,
     _filter_on_infs_nans,
+    _check_prophet_availability
 )
 
 from forecastframe.interpret import _calc_error_metric, _calc_RMSE
@@ -958,6 +959,7 @@ def _fit_prophet(data, *args, **kwargs):
     model.history = data
 
     return model
+        
 
 
 def _predict_prophet(
@@ -1343,6 +1345,8 @@ def predict(self, model, future_periods=None, min_lag_dict=None, *args, **kwargs
         model in model_mappings.keys()
     ), f"Model must be one of {model_mappings.keys()}"
 
+    model = _check_prophet_availability(model=model)
+
     self.encode_categoricals()
 
     modeling_function = model_mappings[model]
@@ -1401,6 +1405,7 @@ def cross_validate(
     assert (
         model in model_mappings.keys()
     ), f"Model must be one of {model_mappings.keys()}"
+    model = _check_prophet_availability(model=model)
 
     modeling_function = model_mappings[model]
 
