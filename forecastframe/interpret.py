@@ -166,8 +166,7 @@ def _calc_errors(self, data, describe):
 
     for metric in function_mapping_dict.keys():
         data.loc[:, metric] = function_mapping_dict[metric](
-            actuals=data[self.target],
-            predictions=data[f"predicted_{self.target}"],
+            actuals=data[self.target], predictions=data[f"predicted_{self.target}"],
         ).replace([-np.inf, np.inf], np.nan)
 
     if describe:
@@ -268,6 +267,18 @@ def _calc_shap_values(self, data=None):
         data = _get_data_to_analyze(self=self)[columns_to_keep]
 
     explainer = shap.TreeExplainer(self.model_object)
+
+    # For some unknown reason, the categorical columns are not always encoded into the booster correctly.
+    # The code below attempts to fix that mistake when it detects categorical columns in your data.
+    categorical_columns = data.select_dtypes(["category"]).columns
+    categorical_columns_from_original_model = (
+        explainer.model.original_model.pandas_categorical
+    )
+    if len(categorical_columns) > len(categorical_columns_from_original_model):
+        explainer.model.original_model.pandas_categorical = [
+            list(data[column].cat.categories) for column in categorical_columns
+        ]
+
     self.shap = {
         "explainer": explainer,
         "shap_values": explainer.shap_values(data),
@@ -348,10 +359,7 @@ def plot_shap_dependence(self, column_name, color_column=None):
         color_column = column_name
 
     return shap.dependence_plot(
-        column_name,
-        shap_values,
-        data,
-        interaction_index=color_column,
+        column_name, shap_values, data, interaction_index=color_column,
     )
 
 
@@ -414,9 +422,7 @@ def plot_shap_force(self, slicer=None, show=False, *args, **kwargs):
         slicer = _get_default_slicer(data)
 
     return shap.force_plot(
-        explainer.expected_value,
-        shap_values[slicer, :],
-        data.iloc[slicer, :],
+        explainer.expected_value, shap_values[slicer, :], data.iloc[slicer, :],
     )
 
 
@@ -703,10 +709,7 @@ def plot_error_distributions(
                 y=alt.Column("Sample:O", title=y_axis_title),
                 x=alt.Column("value:Q", title=x_axis_title),
                 color=alt.Column(
-                    "Fold:O",
-                    title="",
-                    legend=None,
-                    scale=alt.Scale(scheme=scheme),
+                    "Fold:O", title="", legend=None, scale=alt.Scale(scheme=scheme),
                 ),
                 row=alt.Column(
                     "Fold",
@@ -739,8 +742,7 @@ def plot_forward_predictions(self, width=400, height=300, scheme="tealblues"):
     melted_data = (
         self.predictions.reset_index()
         .rename(
-            {self.target: "Actuals", f"predicted_{self.target}": "Predictions"},
-            axis=1,
+            {self.target: "Actuals", f"predicted_{self.target}": "Predictions"}, axis=1,
         )
         .melt(
             id_vars=[self.datetime_column],
@@ -756,22 +758,11 @@ def plot_forward_predictions(self, width=400, height=300, scheme="tealblues"):
         .encode(
             x=f"{self.datetime_column}:T",
             y=f"Values",
-            color=alt.Column(
-                "Type:O",
-                title="",
-                scale=alt.Scale(scheme=scheme),
-            ),
-            strokeDash=alt.Column(
-                "Type:O",
-                title="",
-            ),
+            color=alt.Column("Type:O", title="", scale=alt.Scale(scheme=scheme),),
+            strokeDash=alt.Column("Type:O", title="",),
             tooltip=[
                 "Type",
-                alt.Tooltip(
-                    field="Values",
-                    format=".2f",
-                    type="quantitative",
-                ),
+                alt.Tooltip(field="Values", format=".2f", type="quantitative",),
                 f"yearmonthdate({self.datetime_column})",
             ],
         )
@@ -806,9 +797,7 @@ def plot_predictions_over_time(
     )
 
     melted_data = data.melt(
-        id_vars=[self.datetime_column, "Fold"],
-        var_name="Type",
-        value_name="Values",
+        id_vars=[self.datetime_column, "Fold"], var_name="Type", value_name="Values",
     )
 
     fig = (
@@ -817,23 +806,12 @@ def plot_predictions_over_time(
         .encode(
             x=f"{self.datetime_column}:T",
             y=f"Values",
-            color=alt.Column(
-                "Type:O",
-                title="",
-                scale=alt.Scale(scheme=scheme),
-            ),
-            strokeDash=alt.Column(
-                "Fold:O",
-                title="",
-            ),
+            color=alt.Column("Type:O", title="", scale=alt.Scale(scheme=scheme),),
+            strokeDash=alt.Column("Fold:O", title="",),
             tooltip=[
                 "Fold:O",
                 "Type",
-                alt.Tooltip(
-                    field="Values",
-                    format=".2f",
-                    type="quantitative",
-                ),
+                alt.Tooltip(field="Values", format=".2f", type="quantitative",),
                 f"yearmonthdate({self.datetime_column})",
             ],
         )
