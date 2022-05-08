@@ -18,7 +18,7 @@ from forecastframe.utilities import (
     _update_values,
     _reset_date_index,
     _filter_on_infs_nans,
-    _check_prophet_availability
+    _check_prophet_availability,
 )
 
 from forecastframe.interpret import _calc_error_metric, _calc_RMSE
@@ -180,8 +180,7 @@ def _merge_actuals(self, prediction_df):
     if self.hierarchy:
         merged_values = prediction_df.merge(
             self.data.loc[
-                ~self.data[self.target].isnull(),
-                [self.target] + self.hierarchy,
+                ~self.data[self.target].isnull(), [self.target] + self.hierarchy,
             ],
             on=[self.datetime_column] + self.hierarchy,
             how="outer",
@@ -233,8 +232,6 @@ def _get_lightgbm_cv(
     min_lag_dict : dict, default None
         If user passes a dictionary of {column_name: minimum lag value}, any lag values less than this threshold will be deleted prior to modeling
     """
-
-    import itertools
 
     if not params:
         params = get_lgb_params("light")
@@ -302,10 +299,7 @@ def _get_lightgbm_cv(
                 transform_dict=transform_dict,
                 target=f"predicted_{self.target}",
             )
-            for df in [
-                train_predictions,
-                test_predictions,
-            ]
+            for df in [train_predictions, test_predictions,]
         ]
 
         train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
@@ -370,7 +364,7 @@ def _grid_search_lightgbm_params(
 
     cv_object = cv_function(**args)
 
-    cv_object.fit(X, y, groups=X.index)
+    cv_object.fit(X, y, groups=X.index, **kwargs)
 
     results = {
         "best_estimator": cv_object.best_estimator_,
@@ -686,9 +680,7 @@ def _split_scale_and_feature_engineering(
     scaled_test[self.target] = None
 
     combined_data = pd.concat(
-        [scaled_train, scaled_test],
-        keys=["train", "test"],
-        axis=0,
+        [scaled_train, scaled_test], keys=["train", "test"], axis=0,
     )
 
     combined_data.index.names = ["_sample_name", self.datetime_column]
@@ -959,7 +951,6 @@ def _fit_prophet(data, *args, **kwargs):
     model.history = data
 
     return model
-        
 
 
 def _predict_prophet(
@@ -1239,10 +1230,7 @@ def _get_prophet_cv(
 
         (descaled_train_predictions, descaled_test_predictions,) = [
             self._descale_target(array=df, transform_dict=transform_dict, target="yhat")
-            for df in [
-                train_predictions,
-                test_predictions,
-            ]
+            for df in [train_predictions, test_predictions,]
         ]
 
         train.loc[:, f"predicted_{self.target}"], train.loc[:, f"{self.target}"] = [
