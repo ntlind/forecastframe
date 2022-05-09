@@ -1,5 +1,5 @@
 import numpy as np
-
+import pandas as pd
 import forecastframe as ff
 from forecastframe import testing
 
@@ -35,39 +35,6 @@ def test__run_scaler_pipeline():
     assert {"log1p", "normalize"}.issubset(set(log_dict.keys()))
 
 
-def test__run_ensembles():
-    pass
-    # from datetime import timedelta
-
-    # fframe = testing.get_test_fframe()
-    # fframe.data = fframe.data.dropna()
-    # fframe.sample = fframe.sample.dropna()
-
-    # train_df = fframe.data.copy(deep=True)
-
-    # test_df = fframe.data.copy(deep=True)
-    # test_df[["sales_int", "sales_float"]] = test_df[["sales_int", "sales_float"]] * 20
-    # test_df.index = test_df.index + timedelta(days=15)
-
-    # initial_sample = fframe.sample.copy(deep=True)
-
-    # # should only update the sample
-    # fframe.calc_prophet_predictions(
-    #     additional_regressors=["state", "store"], interval_width=0.99
-    # )
-    # assert fframe.data.equals(train_df)
-    # assert set(["prophet_yhat", "prophet_yhat_upper"]).issubset(
-    #     set(fframe.sample.columns)
-    # )
-
-    # train_answer, test_answer = fframe._run_ensembles(train_df, test_df)
-
-    # for result, answer in [(train_df, train_answer), (test_df, test_answer)]:
-
-    #     assert set(["prophet_yhat", "prophet_yhat_upper"]).issubset(set(answer.columns))
-    #     assert len(result) == len(answer)
-
-
 def test__split_scale_and_feature_engineering():
     fframe = testing.get_test_fframe(correct_negatives=True)
 
@@ -95,8 +62,7 @@ def test__split_scale_and_feature_engineering():
 
     # then test the values
     train, test, transform_dict = fframe._split_scale_and_feature_engineering(
-        train_index,
-        test_index,
+        train_index, test_index,
     )
 
     train.sort_index(inplace=True)
@@ -192,7 +158,7 @@ def test_predict():
 
     fframe.predict(
         future_periods=10,
-        model="prophet",
+        model="lightgbm",
         min_lag_dict={"sales_float": 3, "sales_int": 2},
     )
 
@@ -200,6 +166,7 @@ def test_predict():
 
     assert set(
         [
+            f"predicted_{fframe.target}",
             "sales_int_lag2",
             "sales_int_lag3",
             "sales_int_lag4",
@@ -209,20 +176,7 @@ def test_predict():
     ).issubset(set(results.columns))
 
     assert not set(
-        [
-            "sales_int_lag1",
-            "sales_float_lag1",
-            "sales_float_lag2",
-        ]
-    ).issubset(set(results.columns))
-
-    assert set(
-        fframe.hierarchy
-        + [
-            f"predicted_{fframe.target}",
-            f"predicted_{fframe.target}_upper",
-            f"predicted_{fframe.target}_lower",
-        ]
+        ["sales_int_lag1", "sales_float_lag1", "sales_float_lag2",]
     ).issubset(set(results.columns))
 
 
@@ -237,18 +191,6 @@ def test__merge_actuals():
     assert set(["sales_int", "predicted_sales_int"]).issubset(set(result.columns))
 
 
-def test__make_future_dataframe():
-    fframe = testing.get_test_fframe()
-
-    processed_df = ff.model._preprocess_prophet_names(self=fframe, df=fframe.data)
-    model_object = ff.model._fit_prophet(processed_df)
-    result = ff.model._make_future_dataframe(
-        self=fframe, model_object=model_object, periods=10, hierarchy=fframe.hierarchy
-    )
-
-    assert set(fframe.hierarchy).issubset(set(result.columns))
-
-
 def test_cross_validate():
     fframe = testing.get_realistic_fframe()
 
@@ -261,17 +203,19 @@ def test_cross_validate():
     )
 
     results = fframe.predictions
+    fframe.plot_shap_importance()
 
     assert not set(["sales_lag1", "sales_lag2"]).issubset((set(results.columns)))
     assert set(
         fframe.hierarchy + [f"predicted_{fframe.target}", "sales_lag3", "sales_lag4"]
     ).issubset(set(results.columns))
+    assert len(fframe.shap) == 3
 
 
 def test_get_errors():
     fframe = testing.get_test_fframe()
 
-    fframe.predict(future_periods=10, model="prophet")
+    fframe.predict(future_periods=10, model="lightgbm")
 
     results = fframe.get_errors()
 
@@ -282,13 +226,11 @@ def test_get_errors():
 
 if __name__ == "__main__":
     test__split_scale_and_feature_engineering()
-    test__make_future_dataframe()
     test_predict()
     test_cross_validate()
     test__merge_actuals()
     test_get_errors()
     test_get_errors()
-    test__run_ensembles()
     test__run_scaler_pipeline()
 
     print("Finished with model tests!")
