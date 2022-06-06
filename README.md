@@ -23,6 +23,9 @@ so that you can focus on feature creation, model interpretation, and delivery.
   - pandas ✅
   - mxnet
   - Ray
+- Intake
+    - Drag n' drop ✅
+    - AWS, BigQuery, and Azure connectors 
 - Preprocessing
   - Scaling
     - Logp1 ✅
@@ -79,6 +82,7 @@ so that you can focus on feature creation, model interpretation, and delivery.
     - sklearn Random Forest and GBM
     - Catboost
     - Prophet
+    - Pareto NBD and other Bayesian MMs
   - Model fitting behavior
     - Ensembling
     - Recursive modeling
@@ -98,6 +102,7 @@ so that you can focus on feature creation, model interpretation, and delivery.
     - Visualizing error metrics by fold
   - Model interpretation
     - Training and validation curves
+    - Textual alerts and summaries
     - Mean Decrease Accuracy (MDA)
     - Mean Decrease Impurity (MDI)
     - Single Feature Importance
@@ -105,7 +110,9 @@ so that you can focus on feature creation, model interpretation, and delivery.
     - Dependence plots
     - [Accumulated Local Effects](https://christophm.github.io/interpretable-ml-book/ale.html)
     - Ability to view feature importances by quantile (for quantile regression)
+    - Partial dependency plots
     - ACF plots
+    - ICE curves
   - Data interpretation 
     - Clustering at different levels using target variable
     - Anomaly detection for continuous timeseries
@@ -118,6 +125,7 @@ so that you can focus on feature creation, model interpretation, and delivery.
   - RAM and memory checks ✅ 
   - Ability to save and load fframes ✅
   - Filling gaps over time ✅
+  - Export to database
   - Ability to add noise to ratio features
   
 ## Examples
