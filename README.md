@@ -5,16 +5,14 @@
 
 ## Overview
 
-`forecastframe` generates interpretable forecasts using best-in-class feature-engineering, modeling, and validation strategies. 
-It's designed to abstract away hierarchical relationships (e.g., [[Country -> 
+`forecastframe` generates interpretable forecasts using best-in-class feature-engineering, modeling, and validation strategies. It's designed to abstract away hierarchical relationships (e.g., [[Country -> 
 State -> Store], [Category -> Brand -> Product]]) and common time-series issues 
 so that you can focus on feature creation, model interpretation, and delivery.
 
 ## Features
-- **Best-in-class feature engineering, modeling, and interpretation algorithms** inspired
-    by world-class forecasting competitions and hedge funds.
+- **Feature engineering, modeling, and interpretation algorithms** inspired by [the M5 competition](https://www.kaggle.com/competitions/m5-forecasting-accuracy).
 - **Intuitive, inheritable class design** simplifies complicated operations (e.g., rolling 
-    cross-validation without leakage, model ensembling, etc.) without restricting optionality. 
+    cross-validation without leakage, model ensembling, etc.). 
 - **Built for speed and scale**, taking advantage of asynch components, generators, and distributed 
     frameworks like mxnet and Ray to run quickly and efficiently on billion-row datasets.
 
@@ -129,18 +127,8 @@ so that you can focus on feature creation, model interpretation, and delivery.
   - Ability to add noise to ratio features
   
 ## Examples
-
 See the latest examples in [`/examples`](https://github.com/ntlind/forecastframe/tree/main/examples)
 
 
-## License
-
-This software isn't available for commercial use at this time. Please reach out to us at `nick@quantile.app` with any inquiries.
-
 ## Installation
-
 `$ git clone https://www.github.com/ntlind/forecastframe`
-
-## Have feedback?
-
-We'd love to hear it! Send us your thoughts at nick@quantile.app.
