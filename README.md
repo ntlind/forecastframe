@@ -9,6 +9,8 @@
 State -> Store], [Category -> Brand -> Product]]) and common time-series issues 
 so that you can focus on feature creation, model interpretation, and delivery.
 
+See [this notebook](https://github.com/ntlind/forecastframe/blob/main/examples/explanatory_example.ipynb) for an exploratory example.
+
 ## Features
 - **Feature engineering, modeling, and interpretation algorithms** inspired by [the M5 competition](https://www.kaggle.com/competitions/m5-forecasting-accuracy).
 - **Intuitive, inheritable class design** simplifies complicated operations (e.g., rolling 
