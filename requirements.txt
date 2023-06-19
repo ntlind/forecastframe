@@ -2,7 +2,7 @@ pandas
 numpy
 pytest
 shap
-sklearn
+scikit-learn
 psutil
 tqdm
 lightgbm
